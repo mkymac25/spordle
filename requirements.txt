@@ -3,6 +3,7 @@ spotipy==2.25.1
 fuzzywuzzy==0.18.0
 python-dotenv==1.0.0
 gunicorn==21.2.0
-SQLAlchemy==2.1.0
+SQLAlchemy==2.0.44
 python-Levenshtein==0.21.1
+# Optional (only needed if you plan to use Postgres via DATABASE_URL)
 psycopg2-binary==2.9.7

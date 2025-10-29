@@ -1,158 +1,92 @@
-// static/app.js
-const SNIPPET_LENGTHS = [1, 2, 5, 7, 10];
+// static/app.js (DEBUG VERSION)
+// Replace your current app.js with this to quickly diagnose why buttons do nothing.
+// It logs loading, checks DOM elements, attaches debug event handlers, and performs a test fetch.
 
-let state = {
-  track: null,
-  round: 0,
-  history: [],
-  stats: {
-    correctSongs: 0,
-    totalAttemptsForCorrectSongs: 0
-  },
-  playing: false
-};
+console.log("[spordle-debug] app.js loaded at", new Date().toISOString());
 
-const playButton = document.getElementById("play-snippet");
-const newButton = document.getElementById("fetch-new");
-const guessForm = document.getElementById("guess-form");
-const guessInput = document.getElementById("guess-input");
-const infoDiv = document.getElementById("info");
-const historyDiv = document.getElementById("history");
-const errorsDiv = document.getElementById("errors");
-const statCorrectSpan = document.getElementById("stat-correct");
-const statAttemptsSpan = document.getElementById("stat-attempts");
+// Helper safe-get
+function $id(id) { return document.getElementById(id); }
 
-function setInfo(msg) { if (infoDiv) infoDiv.textContent = msg; }
-function setError(msg) { if (errorsDiv) errorsDiv.textContent = msg; }
-function clearError() { if (errorsDiv) errorsDiv.textContent = ""; }
+// Check script tag presence
+try {
+  const scriptTag = document.querySelector("script[src*='app.js']");
+  console.log("[spordle-debug] script tag present:", !!scriptTag, scriptTag && scriptTag.src);
+} catch (e) {
+  console.error("[spordle-debug] script tag check failed", e);
+}
 
-function renderHistory() {
-  historyDiv.innerHTML = "";
-  state.history.forEach((h, i) => {
-    const el = document.createElement("div");
-    el.className = "history-item";
-    const ratioText = h.ratio !== undefined ? ` (${h.ratio}%)` : "";
-    el.textContent = `${i+1}. ${h.guess} — ${h.accepted ? "✅" : "❌"}${ratioText}`;
-    historyDiv.appendChild(el);
+// Check DOM elements
+const ids = ['play-snippet','fetch-new','guess-form','guess-input','info','history','errors','stat-correct','stat-attempts'];
+ids.forEach(id => {
+  const el = $id(id);
+  console.log(`[spordle-debug] element #${id}:`, el ? "FOUND" : "MISSING");
+});
+
+// Attach debug handlers (always attach even if original logic broken)
+const playBtn = $id('play-snippet');
+if (playBtn) {
+  playBtn.addEventListener('click', (ev) => {
+    ev.preventDefault();
+    console.log("[spordle-debug] play-snippet CLICK");
+    // quick test network ping
+    fetch("/api/session-info").then(r=>r.json()).then(j=>{
+      console.log("[spordle-debug] /api/session-info response:", j);
+      alert("Debug: /api/session-info returned: " + JSON.stringify(j));
+    }).catch(err=>{
+      console.error("[spordle-debug] /api/session-info fetch error:", err);
+      alert("Debug: network fetch failed: " + err);
+    });
   });
-  renderStats();
+} else {
+  console.warn("[spordle-debug] play button missing; cannot attach handler");
 }
 
-function renderStats() {
-  statCorrectSpan.textContent = state.stats.correctSongs;
-  const avg = state.stats.correctSongs > 0
-    ? (state.stats.totalAttemptsForCorrectSongs / state.stats.correctSongs).toFixed(2)
-    : "—";
-  statAttemptsSpan.textContent = avg;
+const newBtn = $id('fetch-new');
+if (newBtn) {
+  newBtn.addEventListener('click', (ev) => {
+    ev.preventDefault();
+    console.log("[spordle-debug] fetch-new CLICK");
+    // Attempt to call seed-track
+    fetch("/api/seed-track")
+      .then(r => {
+        console.log("[spordle-debug] /api/seed-track status", r.status);
+        return r.json();
+      })
+      .then(j => console.log("[spordle-debug] /api/seed-track json:", j))
+      .catch(err => console.error("[spordle-debug] /api/seed-track fetch failed:", err));
+  });
+} else {
+  console.warn("[spordle-debug] new song button missing; cannot attach handler");
 }
 
-function fetchSeed() {
-  clearError();
-  setInfo("Fetching a new track...");
-  fetch("/api/seed-track")
-    .then(r => r.json())
-    .then(data => {
-      if (data.needs_auth) {
-        setError("Please connect your Spotify account.");
-        setInfo("");
-        return;
-      }
-      if (data.error) {
-        setError("Error: " + data.error);
-        setInfo("");
-        return;
-      }
-      state.track = data;
-      state.round = 0;
-      state.history = [];
-      state.playing = false;
-      renderHistory();
+// Guess form attach
+const guessForm = $id('guess-form');
+if (guessForm) {
+  guessForm.addEventListener('submit', (ev) => {
+    ev.preventDefault();
+    console.log("[spordle-debug] guess-form SUBMIT");
+    const val = ($id('guess-input') && $id('guess-input').value) || "";
+    console.log("[spordle-debug] guess value:", val);
+    // test check-guess call (sends dummy correct_title if state missing)
+    fetch("/api/check-guess", {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ guess: val, correct_title: "test title for debug" })
     })
-    .catch(err => {
-      setError("Network error: " + err);
-      setInfo("");
-    });
-}
-
-function playSnippet() {
-  clearError();
-  if (!state.track) { setError("No track loaded — click New song."); return; }
-  if (state.playing) { setError("Snippet already playing — wait."); return; }
-
-  const duration = SNIPPET_LENGTHS[Math.min(state.round, SNIPPET_LENGTHS.length - 1)];
-  setInfo(`Requesting ${duration}s playback on your active Spotify device...`);
-  state.playing = true;
-  updatePlayButtonState();
-
-  fetch("/api/play-snippet", {
-    method: "POST",
-    headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({ uri: state.track.uri, duration })
-  })
     .then(r => r.json())
-    .then(res => {
-      state.playing = false;
-      updatePlayButtonState();
-      if (res.error) {
-        setError(res.error);
-        setInfo("");
-        return;
-      }
-      setInfo(`Played ${duration}s on your Spotify device. Make a guess!`);
-    })
-    .catch(err => {
-      state.playing = false;
-      updatePlayButtonState();
-      setError("Network error: " + err);
-      setInfo("");
-    });
+    .then(j => console.log("[spordle-debug] /api/check-guess json:", j))
+    .catch(err => console.error("[spordle-debug] /api/check-guess error:", err));
+  });
+} else {
+  console.warn("[spordle-debug] guess form missing; cannot attach handler");
 }
 
-function updatePlayButtonState() {
-  if (!playButton) return;
-  playButton.disabled = state.playing;
-  playButton.textContent = state.playing ? "Playing…" : "Play snippet";
-}
+// Also check console for any runtime errors that happened before this script ran
+window.addEventListener('error', (ev) => {
+  console.error("[spordle-debug] window error event:", ev.message, ev.error);
+});
+window.addEventListener('unhandledrejection', (ev) => {
+  console.error("[spordle-debug] unhandled rejection:", ev.reason);
+});
 
-function submitGuess(ev) {
-  ev.preventDefault();
-  clearError();
-  if (!state.track) { setError("No track loaded."); return; }
-
-  const guess = guessInput.value.trim();
-  if (!guess) return;
-
-  fetch("/api/check-guess", {
-    method: "POST",
-    headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({ guess, correct_title: state.track.name })
-  })
-  .then(r => r.json())
-  .then(res => {
-    if (res.error) {
-      setError("Server error: " + res.error);
-      setInfo("");
-      return;
-    }
-
-    state.history.push(res);
-    renderHistory();
-    guessInput.value = "";
-
-    // Show hint only on guesses 3-5 (round 2-4)
-    if (state.round >= 2 && state.round < 5) {
-      setInfo(`Hint: Artist(s) — ${state.track.artists.join(", ")}`);
-    }
-
-    if (res.accepted) {
-      const attemptNumber = Math.min(state.round + 1, SNIPPET_LENGTHS.length);
-      state.stats.correctSongs += 1;
-      state.stats.totalAttemptsForCorrectSongs += attemptNumber;
-
-      setInfo(`✅ Correct! "${state.track.name}" — guessed on attempt #${attemptNumber}. Total correct: ${state.stats.correctSongs}`);
-
-      setTimeout(fetchSeed, 5000);
-      state.round = 0;
-      state.history = [];
-    } else {
-      state.round++;
+console.log("[spordle-debug] debug script finished attaching handlers");

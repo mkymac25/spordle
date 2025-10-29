@@ -5,6 +5,7 @@ Spordle backend with:
 - Avoid repeating tracks in the current Flask session (session['played_tracks'])
 - /api/session-played-count: returns session played count + stored user stats
 - /api/report-result: report result (accepted/failed) and attempts -> updates persistent stats (SQLite)
+- Uses rapidfuzz for fuzzy matching (no python-Levenshtein C build)
 """
 import os
 import time
@@ -12,7 +13,9 @@ import random
 from flask import Flask, redirect, url_for, session, request, render_template, jsonify
 from spotipy import Spotify
 from spotipy.oauth2 import SpotifyOAuth
-from fuzzywuzzy import fuzz
+
+# use rapidfuzz instead of fuzzywuzzy
+from rapidfuzz import fuzz
 
 # SQLAlchemy for persistence
 from sqlalchemy import create_engine, Column, Integer, String
@@ -26,12 +29,13 @@ SPOTIFY_CLIENT_ID = os.environ.get("SPOTIFY_CLIENT_ID")
 SPOTIFY_CLIENT_SECRET = os.environ.get("SPOTIFY_CLIENT_SECRET")
 SPOTIFY_REDIRECT_URI = os.environ.get("SPOTIFY_REDIRECT_URI")
 
+# scopes for playback and user info
 SCOPE = "user-read-playback-state user-modify-playback-state user-read-currently-playing user-top-read user-read-recently-played user-read-email"
 
 if not SPOTIFY_CLIENT_ID or not SPOTIFY_CLIENT_SECRET or not SPOTIFY_REDIRECT_URI:
     raise RuntimeError("Set SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET, and SPOTIFY_REDIRECT_URI environment variables")
 
-# SQLite DB (file in project root)
+# SQLite DB (file in project root) by default; override with DATABASE_URL env var for Postgres etc.
 DB_URL = os.environ.get("DATABASE_URL", "sqlite:///spordle.db")
 engine = create_engine(DB_URL, connect_args={"check_same_thread": False} if DB_URL.startswith("sqlite") else {})
 Base = declarative_base()
@@ -56,10 +60,6 @@ def get_spotify():
     if not access_token:
         return None
     return Spotify(auth=access_token)
-
-def refresh_token_if_needed(sp_oauth):
-    # Using Spotipy's flow via SpotifyOAuth object; this helper only used if you want refresh - leaving as placeholder
-    pass
 
 # ----------------- Pages & Auth -----------------
 @app.route("/")
@@ -86,7 +86,8 @@ def callback():
         return "Missing code", 400
     token_info = sp_oauth.get_access_token(code)
     session["token_info"] = token_info
-    # fetch profile to get stable user id for persistence
+
+    # Get spotify user id for persisted stats
     sp = get_spotify()
     try:
         profile = sp.current_user()
@@ -94,15 +95,14 @@ def callback():
         session["spotify_user_id"] = user_id
     except Exception:
         session["spotify_user_id"] = None
-    # ensure played_tracks list exists per-session
+
+    # initialize session played_tracks
     session.setdefault("played_tracks", [])
-    # ensure current_track cleared
     session.pop("current_track", None)
     return redirect(url_for("game"))
 
 @app.route("/logout")
 def logout():
-    # Note: we intentionally do NOT delete DB stats on logout
     session.clear()
     return redirect(url_for("index"))
 
@@ -112,10 +112,20 @@ def game():
         return redirect(url_for("index"))
     return render_template("game.html")
 
-# ----------------- Track selection (avoid repeats in current session) -----------------
+@app.route("/api/session-info")
+def session_info():
+    if "token_info" not in session:
+        return jsonify({"needs_auth": True})
+    return jsonify({"needs_auth": False})
+
+# ----------------- Track collection and seeding -----------------
 def _collect_candidate_tracks(sp):
+    """
+    Build candidate track list from currently playing, recently played, and top tracks.
+    Returns list of track dicts (spotipy track objects).
+    """
     candidates = {}
-    # 1) currently playing
+    # currently playing
     try:
         cur = sp.current_user_playing_track()
         if cur and cur.get("item"):
@@ -125,7 +135,7 @@ def _collect_candidate_tracks(sp):
     except Exception:
         pass
 
-    # 2) recently played
+    # recently played
     try:
         rp = sp.current_user_recently_played(limit=50)
         for it in rp.get("items", []):
@@ -135,7 +145,7 @@ def _collect_candidate_tracks(sp):
     except Exception:
         pass
 
-    # 3) top tracks
+    # top tracks
     try:
         top = sp.current_user_top_tracks(limit=50, time_range="medium_term")
         for t in top.get("items", []):
@@ -153,23 +163,29 @@ def seed_track():
     sp = get_spotify()
     if not sp:
         return jsonify({"needs_auth": True})
+
     played = session.get("played_tracks", [])
+
     try:
         candidates = _collect_candidate_tracks(sp)
         new_candidates = [t for t in candidates if t.get("id") not in played]
+
         if not new_candidates:
             return jsonify({"error": "no-more-tracks"}), 404
+
         track = random.choice(new_candidates)
         track_id = track.get("id")
+
         session["current_track"] = {
             "id": track_id,
             "name": track.get("name"),
             "artists": [a.get("name") for a in track.get("artists", [])],
             "uri": track.get("uri")
         }
-        # mark as played for this session
+
         played.append(track_id)
         session["played_tracks"] = played
+
         response = {
             "id": track_id,
             "name": track.get("name"),
@@ -180,7 +196,7 @@ def seed_track():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-# ----------------- Playback on active device -----------------
+# ----------------- Playback control -----------------
 @app.route("/api/play-snippet", methods=["POST"])
 def play_snippet():
     sp = get_spotify()
@@ -213,25 +229,29 @@ def check_guess():
         correct_title = current.get("name", "")
     else:
         correct_title = data.get("correct_title", "")
+
     if not guess or not correct_title:
         return jsonify({"error": "missing-guess-or-correct-title"}), 400
+
+    # rapidfuzz returns float or int depending on call; use ratio which returns int-like float
     score = fuzz.ratio(guess.lower(), correct_title.lower())
+    # thresholds (same idea as before)
     target = 93 if len(correct_title) > 4 else 88
     accepted = score >= target
+
     return jsonify({
-        "accepted": accepted,
+        "accepted": bool(accepted),
         "guess": guess,
-        "ratio": score
+        "ratio": int(score) if hasattr(score, "__int__") else score
     })
 
-# ----------------- New endpoints: session-played-count & report-result -----------------
+# ----------------- Session & persistent stats endpoints -----------------
 @app.route("/api/session-played-count")
 def session_played_count():
     if "token_info" not in session:
         return jsonify({"needs_auth": True})
     played = session.get("played_tracks", [])
     session_count = len(played)
-    # get persisted user stats (if user id known)
     spotify_user_id = session.get("spotify_user_id")
     user_stats = None
     if spotify_user_id:
@@ -249,11 +269,6 @@ def session_played_count():
 
 @app.route("/api/report-result", methods=["POST"])
 def report_result():
-    """
-    Body: { track_id, accepted: bool, attempts: int }
-    Updates persistent stats for the logged-in Spotify user.
-    Increments songs_played regardless; increments correct/attempts only when accepted=True.
-    """
     if "token_info" not in session:
         return jsonify({"needs_auth": True}), 401
     spotify_user_id = session.get("spotify_user_id")

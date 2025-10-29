@@ -129,8 +129,7 @@ function submitGuess(ev) {
 
   const guess = guessInput.value.trim();
   if (!guess) return;
-  setInfo("Checking guess...");
-  
+
   fetch("/api/check-guess", {
     method: "POST",
     headers: {"Content-Type": "application/json"},
@@ -148,24 +147,34 @@ function submitGuess(ev) {
     renderHistory();
     guessInput.value = "";
 
+    // Show hint if round is 2,3,4 (3rd-5th guess, 0-indexed)
+    if (state.round >= 2 && state.round < 5) {
+      setInfo(`Hint: Artist(s) — ${state.track.artists.join(", ")}`);
+    }
+
     if (res.accepted) {
       const attemptNumber = Math.min(state.round + 1, SNIPPET_LENGTHS.length);
       state.stats.correctSongs += 1;
       state.stats.attemptsPerSong.push(attemptNumber);
+
       setInfo(`✅ Correct! "${state.track.name}" — guessed on attempt #${attemptNumber}. Total correct: ${state.stats.correctSongs}`);
-      // automatically fetch new song after short delay
-      setTimeout(fetchSeed, 1200);
+
+      // Keep info visible for 5 seconds before next song
+      setTimeout(fetchSeed, 5000);
+      state.round = 0;
+      state.history = [];
     } else {
-      // incorrect guess
       state.round++;
       if (state.round >= 5) {
-        // max 5 guesses reached → song failed
+        // max guesses reached → song failed
         setInfo(`❌ Max guesses reached. The song was "${state.track.name}" by ${state.track.artists.join(", ")}.`);
-        setTimeout(fetchSeed, 2000); // move to next song
+        setTimeout(fetchSeed, 5000); // move to next song after 5s
         state.round = 0;
         state.history = [];
       } else {
-        setInfo(`❌ Wrong. Next snippet will be ${SNIPPET_LENGTHS[Math.min(state.round, SNIPPET_LENGTHS.length-1)]}s.`);
+        // show message for 5s before letting user continue
+        const snippetDuration = SNIPPET_LENGTHS[Math.min(state.round, SNIPPET_LENGTHS.length-1)];
+        setInfo(`❌ Wrong. Next snippet will be ${snippetDuration}s.`);
       }
     }
   })
@@ -174,6 +183,7 @@ function submitGuess(ev) {
     setInfo("");
   });
 }
+
 
 /* Wire up event listeners */
 playButton?.addEventListener("click", (e) => { e.preventDefault(); playSnippet(); });

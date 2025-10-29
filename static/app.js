@@ -1,10 +1,7 @@
-// static/app.js (robust version)
+// static/app.js (robust + persistence reporting)
 // - Waits for DOMContentLoaded
-// - Defensive checks for element presence
-// - Implements: play snippet -> /api/play-snippet, new song -> /api/seed-track
-// - Guess checking -> /api/check-guess
-// - 5-guess limit, hints on guesses 3-5, 5s persistent messages
-// - Tracks stats: total correct and average attempts per correct song
+// - Uses /api/session-played-count to show session played and persisted stats
+// - Calls /api/report-result when a song is won or lost
 
 (() => {
   "use strict";
@@ -12,37 +9,31 @@
   const SNIPPET_LENGTHS = [1, 2, 5, 7, 10];
   const MESSAGE_DISPLAY_MS = 5000;
 
-  // App state
   let state = {
     track: null,
     round: 0,
     history: [],
     stats: {
+      // local mirror of persisted stats (kept in sync from server responses)
       correctSongs: 0,
-      totalAttemptsForCorrectSongs: 0
+      totalAttemptsForCorrectSongs: 0,
+      songsPlayedPersisted: 0
     },
     playing: false,
     pendingTimeoutId: null
   };
 
-  // DOM refs (filled after DOM ready)
-  let playButton, newButton, guessForm, guessInput, infoDiv, historyDiv, errorsDiv, statCorrectSpan, statAttemptsSpan;
+  // DOM refs
+  let playButton, newButton, guessForm, guessInput, infoDiv, historyDiv, errorsDiv;
+  let statPlayedSpan, statCorrectSpan, statAttemptsSpan;
 
-  // Utilities
   const log = (...args) => console.log("[spordle]", ...args);
   const warn = (...args) => console.warn("[spordle]", ...args);
   const err = (...args) => console.error("[spordle]", ...args);
 
   function $(id) { return document.getElementById(id); }
 
-  function setInfo(msg, persist=false) {
-    if (!infoDiv) return;
-    infoDiv.textContent = msg || "";
-    // If message should auto-clear and there's an existing timeout, clear it first
-    if (!persist) return;
-    // persist = message should stay (we will clear on next action or after timeout where needed)
-  }
-
+  function setInfo(msg) { if (infoDiv) infoDiv.textContent = msg || ""; }
   function setTimedInfo(msg, ms=MESSAGE_DISPLAY_MS) {
     if (!infoDiv) return;
     clearPendingTimeout();
@@ -52,23 +43,14 @@
       state.pendingTimeoutId = null;
     }, ms);
   }
-
   function clearPendingTimeout() {
     if (state.pendingTimeoutId) {
       clearTimeout(state.pendingTimeoutId);
       state.pendingTimeoutId = null;
     }
   }
-
-  function setError(msg) {
-    if (!errorsDiv) return;
-    errorsDiv.textContent = msg || "";
-  }
-
-  function clearError() {
-    if (!errorsDiv) return;
-    errorsDiv.textContent = "";
-  }
+  function setError(msg) { if (errorsDiv) errorsDiv.textContent = msg || ""; }
+  function clearError() { if (errorsDiv) errorsDiv.textContent = ""; }
 
   function renderHistory() {
     if (!historyDiv) return;
@@ -81,28 +63,63 @@
       el.textContent = `${i+1}. ${h.guess} — ${h.accepted ? "✅" : "❌"}${ratioText}`;
       historyDiv.appendChild(el);
     }
-    renderStats();
   }
 
-  function renderStats() {
-    if (!statCorrectSpan || !statAttemptsSpan) return;
-    statCorrectSpan.textContent = state.stats.correctSongs;
-    const avg = state.stats.correctSongs > 0
-      ? (state.stats.totalAttemptsForCorrectSongs / state.stats.correctSongs).toFixed(2)
-      : "—";
-    statAttemptsSpan.textContent = avg;
+  function renderStatsLocalAndPersisted(serverStats) {
+    // serverStats is optional; if provided, update local mirror
+    if (serverStats) {
+      state.stats.correctSongs = serverStats.correctSongs || 0;
+      state.stats.totalAttemptsForCorrectSongs = serverStats.totalAttemptsForCorrect || 0;
+      state.stats.songsPlayedPersisted = serverStats.songsPlayed || 0;
+    }
+    if (statCorrectSpan) statCorrectSpan.textContent = state.stats.correctSongs;
+    if (statAttemptsSpan) {
+      const avg = state.stats.correctSongs > 0
+        ? (state.stats.totalAttemptsForCorrectSongs / state.stats.correctSongs).toFixed(2)
+        : "—";
+      statAttemptsSpan.textContent = avg;
+    }
   }
 
-  // Fetch a seed track from server
+  function updatePlayedCount(n) {
+    if (statPlayedSpan) statPlayedSpan.textContent = n;
+  }
+
+  // Query session/play count & persisted stats
+  function refreshSessionAndPersistedStats() {
+    fetch("/api/session-played-count")
+      .then(r => r.json())
+      .then(j => {
+        if (j.needs_auth) {
+          setError("Please connect Spotify on the landing page.");
+          return;
+        }
+        updatePlayedCount(j.session_played || 0);
+        if (j.user_stats) {
+          renderStatsLocalAndPersisted(j.user_stats);
+        }
+      })
+      .catch(e => {
+        warn("session-played-count fetch failed:", e);
+      });
+  }
+
+  // Fetch a seed track
   function fetchSeed() {
     clearError();
     clearPendingTimeout();
     setInfo("Fetching new track...");
     fetch("/api/seed-track")
-      .then(r => r.json())
+      .then(r => {
+        if (r.status === 404) {
+          // possibly no-more-tracks
+          return r.json().then(j => { throw j; });
+        }
+        return r.json();
+      })
       .then(data => {
         if (data.needs_auth) {
-          setError("Please connect your Spotify account (go to landing page).");
+          setError("Please connect your Spotify account.");
           setInfo("");
           return;
         }
@@ -117,28 +134,53 @@
         state.playing = false;
         updatePlayButtonState();
         renderHistory();
-        setInfo(""); // clear the "Fetching" text; UI can show artist hint only on 3rd guess
+        setInfo(""); // hint logic shows artist later if needed
+        refreshSessionAndPersistedStats();
         log("Loaded track", state.track);
       })
-      .catch(e => {
-        setError("Network error while fetching track: " + e);
-        setInfo("");
-        err(e);
+      .catch(errObj => {
+        // if server returned no-more-tracks, show friendly message
+        if (errObj && errObj.error === "no-more-tracks") {
+          setError("No more unplayed tracks available in this session.");
+          setInfo("");
+        } else {
+          setError("Network error while fetching track.");
+          setInfo("");
+        }
       });
   }
 
-  // Play snippet by asking backend to start playback on user's active device.
+  // Report result to backend for persistence
+  function reportResultToServer(accepted, attempts) {
+    if (!state.track) return;
+    fetch("/api/report-result", {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ track_id: state.track.id || state.track.uri, accepted: !!accepted, attempts: attempts || 0 })
+    })
+      .then(r => r.json())
+      .then(j => {
+        if (j && j.user_stats) {
+          // update local mirror and UI
+          renderStatsLocalAndPersisted(j.user_stats);
+        }
+        refreshSessionAndPersistedStats();
+      })
+      .catch(e => {
+        warn("report-result failed:", e);
+      });
+  }
+
+  // Play snippet
   function playSnippet() {
     clearError();
     clearPendingTimeout();
-    if (!state.track) { setError("No track loaded. Click New song."); return; }
-    if (state.playing) { setError("Snippet already playing — please wait."); return; }
-
+    if (!state.track) { setError("No track loaded — click New song."); return; }
+    if (state.playing) { setError("Snippet already playing — wait."); return; }
     const duration = SNIPPET_LENGTHS[Math.min(state.round, SNIPPET_LENGTHS.length - 1)];
     setInfo(`Requesting ${duration}s on your active Spotify device...`);
     state.playing = true;
     updatePlayButtonState();
-
     fetch("/api/play-snippet", {
       method: "POST",
       headers: {"Content-Type":"application/json"},
@@ -153,7 +195,6 @@
         setInfo("");
         return;
       }
-      // show a transient message (non-persistent) to prompt guess
       setInfo(`Played ${duration}s. Make a guess!`);
     })
     .catch(e => {
@@ -161,7 +202,6 @@
       updatePlayButtonState();
       setError("Network error during play: " + e);
       setInfo("");
-      err(e);
     });
   }
 
@@ -171,7 +211,7 @@
     playButton.textContent = state.playing ? "Playing…" : "Play snippet";
   }
 
-  // Guess submission logic with 5-guess limit, hints on guesses 3-5, 5s persistent messages
+  // Submit guess
   function submitGuess(ev) {
     ev && ev.preventDefault && ev.preventDefault();
     clearError();
@@ -179,7 +219,6 @@
     if (!state.track) { setError("No track loaded."); return; }
     const guess = (guessInput && guessInput.value || "").trim();
     if (!guess) return;
-
     setInfo("Checking guess...");
     fetch("/api/check-guess", {
       method: "POST",
@@ -193,40 +232,35 @@
         setInfo("");
         return;
       }
-
       state.history.push(res);
       renderHistory();
       if (guessInput) guessInput.value = "";
 
-      // Hint only on guesses 3-5 (state.round is 0-indexed; show hint before increasing round)
+      // Hint on guesses 3-5
       if (state.round >= 2 && state.round < 5) {
         setInfo(`Hint: Artist(s) — ${state.track.artists.join(", ")}`);
       }
 
       if (res.accepted) {
         const attemptNumber = Math.min(state.round + 1, SNIPPET_LENGTHS.length);
-        state.stats.correctSongs += 1;
-        state.stats.totalAttemptsForCorrectSongs += attemptNumber;
-        renderStats();
-        // Show persistent success message for 5s, then fetch next
-        setTimedInfo(`✅ Correct! "${state.track.name}" — guessed on attempt #${attemptNumber}. Total correct: ${state.stats.correctSongs}`, MESSAGE_DISPLAY_MS);
-        // after MESSAGE_DISPLAY_MS, fetch next
+        // report to server before moving on
+        reportResultToServer(true, attemptNumber);
+        setTimedInfo(`✅ Correct! "${state.track.name}" — guessed on attempt #${attemptNumber}.`, MESSAGE_DISPLAY_MS);
+        // after message, load next
         setTimeout(() => { fetchSeed(); }, MESSAGE_DISPLAY_MS);
-        // reset per-song state immediately so UI is ready after fetch
         state.round = 0;
         state.history = [];
       } else {
-        // incorrect guess
         state.round++;
         if (state.round >= 5) {
-          // Lost this song
+          // report a failed song (attempts = 5)
+          reportResultToServer(false, 5);
           setTimedInfo(`❌ Max guesses reached. The song was "${state.track.name}" by ${state.track.artists.join(", ")}`, MESSAGE_DISPLAY_MS);
           setTimeout(() => { fetchSeed(); }, MESSAGE_DISPLAY_MS);
           state.round = 0;
           state.history = [];
         } else {
           const snippetDuration = SNIPPET_LENGTHS[Math.min(state.round, SNIPPET_LENGTHS.length - 1)];
-          // show next snippet message (non-persistent) for user, do not auto-play
           setInfo(`❌ Wrong. Next snippet will be ${snippetDuration}s.`);
         }
       }
@@ -234,26 +268,16 @@
     .catch(e => {
       setError("Network error checking guess: " + e);
       setInfo("");
-      err(e);
     });
   }
 
-  // Attach event listeners defensively
+  // Attach handlers
   function attachHandlers() {
-    if (playButton) {
-      playButton.addEventListener("click", (e) => { e && e.preventDefault && e.preventDefault(); playSnippet(); });
-    } else warn("playButton missing, cannot attach click.");
-
-    if (newButton) {
-      newButton.addEventListener("click", (e) => { e && e.preventDefault && e.preventDefault(); fetchSeed(); });
-    } else warn("newButton missing, cannot attach click.");
-
-    if (guessForm) {
-      guessForm.addEventListener("submit", submitGuess);
-    } else warn("guessForm missing, cannot attach submit.");
+    if (playButton) playButton.addEventListener("click", (e)=>{ e && e.preventDefault && e.preventDefault(); playSnippet();});
+    if (newButton)  newButton.addEventListener("click", (e)=>{ e && e.preventDefault && e.preventDefault(); fetchSeed();});
+    if (guessForm)  guessForm.addEventListener("submit", submitGuess);
   }
 
-  // Sanity-check DOM elements exist
   function findElements() {
     playButton = $("play-snippet");
     newButton  = $("fetch-new");
@@ -262,6 +286,7 @@
     infoDiv    = $("info");
     historyDiv = $("history");
     errorsDiv  = $("errors");
+    statPlayedSpan = $("stat-played");
     statCorrectSpan = $("stat-correct");
     statAttemptsSpan = $("stat-attempts");
 
@@ -273,6 +298,7 @@
       ["info", infoDiv],
       ["history", historyDiv],
       ["errors", errorsDiv],
+      ["stat-played", statPlayedSpan],
       ["stat-correct", statCorrectSpan],
       ["stat-attempts", statAttemptsSpan]
     ];
@@ -282,42 +308,24 @@
     });
   }
 
-  // Initialize app after DOM ready
   function init() {
     try {
       findElements();
       attachHandlers();
-      renderStats();
-
-      // Quick session check then fetch a seed
-      fetch("/api/session-info")
-        .then(r => r.json())
-        .then(si => {
-          if (si.needs_auth) {
-            setError("Please Connect Spotify on landing page first.");
-            setInfo("");
-          } else {
-            fetchSeed();
-          }
-        })
-        .catch(e => {
-          // still try to fetch seed; if it fails server will respond with correct error
-          log("session-info fetch error (continuing):", e);
-          fetchSeed();
-        });
-
+      // initial stats
+      renderStatsLocalAndPersisted(null);
+      refreshSessionAndPersistedStats(); // fills UI
+      // load a track
+      fetchSeed();
       log("Spordle frontend initialized");
     } catch (e) {
       err("Initialization error:", e);
     }
   }
 
-  // Wait for DOMContentLoaded before init (handles scripts placed in head)
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", init);
   } else {
-    // DOM already ready
     init();
   }
-
 })();

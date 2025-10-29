@@ -13,5 +13,4 @@ button{background:var(--accent);color:#fff;border:none;padding:8px 12px;border-r
 .history-item { padding:6px 0; }
 .errors{margin-top:14px;color:#ffb4b4;font-size:13px;}
 .info{margin-top:12px;color:#fff;font-size:14px;}
-.stats { margin-top: 14px; padding: 10px; background: rgba(255,255,255,0.02); border-radius: 8px; color: var(--muted); }
-.stats p { margin: 6px 0; font-size: 14px; }
+.stats { margin-top

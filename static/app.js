@@ -1,5 +1,19 @@
+// static/app.js
+// Wordle-for-songs frontend that controls playback on user's active Spotify device via backend.
+// Tracks stats: total correct songs and which attempt each correct guess occurred on.
+
 const SNIPPET_LENGTHS = [1, 2, 5, 7, 10];
-let state = { track: null, round: 0, history: [] };
+
+let state = {
+  track: null,
+  round: 0, // 0 = first snippet (1s), 1 = second snippet (2s), ...
+  history: [], // array of guess results for current song
+  stats: {
+    correctSongs: 0,
+    attemptsPerSong: [] // push attempt number (1..n) for each correct song
+  },
+  playing: false
+};
 
 const playButton = document.getElementById("play-snippet");
 const newButton = document.getElementById("fetch-new");
@@ -8,63 +22,114 @@ const guessInput = document.getElementById("guess-input");
 const infoDiv = document.getElementById("info");
 const historyDiv = document.getElementById("history");
 const errorsDiv = document.getElementById("errors");
+const statCorrectSpan = document.getElementById("stat-correct");
+const statAttemptsSpan = document.getElementById("stat-attempts");
 
-function setInfo(msg) { infoDiv.textContent = msg; }
-function setError(msg) { errorsDiv.textContent = msg; }
-function clearError() { errorsDiv.textContent = ""; }
+function setInfo(msg) { if (infoDiv) infoDiv.textContent = msg; }
+function setError(msg) { if (errorsDiv) errorsDiv.textContent = msg; }
+function clearError() { if (errorsDiv) errorsDiv.textContent = ""; }
 
 function renderHistory() {
   historyDiv.innerHTML = "";
   state.history.forEach((h, i) => {
     const el = document.createElement("div");
-    el.textContent = `${i+1}. ${h.guess} — ${h.accepted ? "✅" : "❌"} ${h.ratio ? `(${h.ratio}%)` : ""}`;
+    el.className = "history-item";
+    const ratioText = h.ratio !== undefined ? ` (${h.ratio}%)` : "";
+    el.textContent = `${i+1}. ${h.guess} — ${h.accepted ? "✅" : "❌"}${ratioText}`;
     historyDiv.appendChild(el);
   });
+  renderStats();
 }
 
+function renderStats() {
+  statCorrectSpan.textContent = state.stats.correctSongs;
+  statAttemptsSpan.textContent = state.stats.attemptsPerSong.length > 0 ? state.stats.attemptsPerSong.join(", ") : "—";
+}
+
+/* Fetch a seed track from backend (random top track)
+   Resets local round & history for the new song. */
 function fetchSeed() {
   clearError();
+  setInfo("Fetching a new track...");
   fetch("/api/seed-track")
     .then(r => r.json())
     .then(data => {
       if (data.needs_auth) {
         setError("Please connect your Spotify account.");
+        setInfo("");
         return;
       }
       if (data.error) {
         setError("Error: " + data.error);
+        setInfo("");
         return;
       }
       state.track = data;
       state.round = 0;
       state.history = [];
+      state.playing = false;
       setInfo(`Artist hint: ${data.artists.join(", ")}`);
       renderHistory();
     })
-    .catch(err => setError("Network error: " + err));
+    .catch(err => {
+      setError("Network error: " + err);
+      setInfo("");
+    });
 }
 
+/* Trigger playback on user's active Spotify device via backend.
+   Disables Play button while snippet is playing to avoid overlapping calls. */
 function playSnippet() {
   clearError();
-  if (!state.track) { setError("No track loaded"); return; }
+  if (!state.track) { setError("No track loaded — click New song."); return; }
+  if (state.playing) { setError("Snippet already playing — wait."); return; }
+
+  const duration = SNIPPET_LENGTHS[Math.min(state.round, SNIPPET_LENGTHS.length - 1)];
+  setInfo(`Requesting ${duration}s playback on your active Spotify device...`);
+  state.playing = true;
+  updatePlayButtonState();
+
   fetch("/api/play-snippet", {
     method: "POST",
     headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({ uri: state.track.uri, duration: SNIPPET_LENGTHS[state.round] })
+    body: JSON.stringify({ uri: state.track.uri, duration })
   })
     .then(r => r.json())
     .then(res => {
-      if (res.error) setError(res.error);
-      else setInfo(`Played ${SNIPPET_LENGTHS[state.round]}s on your Spotify active device.`);
+      state.playing = false;
+      updatePlayButtonState();
+      if (res.error) {
+        setError(res.error);
+        setInfo("");
+        return;
+      }
+      setInfo(`Played ${duration}s on your Spotify device. Make a guess!`);
     })
-    .catch(err => setError(err));
+    .catch(err => {
+      state.playing = false;
+      updatePlayButtonState();
+      setError("Network error: " + err);
+      setInfo("");
+    });
 }
 
+function updatePlayButtonState() {
+  if (!playButton) return;
+  playButton.disabled = state.playing;
+  playButton.textContent = state.playing ? "Playing…" : "Play snippet";
+}
+
+/* Submit a guess to the backend for fuzzy checking.
+   When accepted: increment stats, record attempt number, auto-fetch a new song.
+   When rejected: advance round so next snippet will be longer. */
 function submitGuess(ev) {
   ev.preventDefault();
   clearError();
+  if (!state.track) { setError("No track loaded."); return; }
+
   const guess = guessInput.value.trim();
   if (!guess) return;
+  setInfo("Checking guess...");
   fetch("/api/check-guess", {
     method: "POST",
     headers: {"Content-Type": "application/json"},
@@ -72,20 +137,61 @@ function submitGuess(ev) {
   })
     .then(r => r.json())
     .then(res => {
+      if (res.error) {
+        setError("Server error: " + res.error);
+        setInfo("");
+        return;
+      }
+
+      // push result to history
       state.history.push(res);
       renderHistory();
       guessInput.value = "";
-      if (res.accepted) setInfo(`Correct! 🎉 "${state.track.name}" — Artists: ${state.track.artists.join(", ")}`);
-      else {
+
+      if (res.accepted) {
+        // user guessed correctly on this round
+        const attemptNumber = Math.min(state.round + 1, SNIPPET_LENGTHS.length);
+        state.stats.correctSongs += 1;
+        state.stats.attemptsPerSong.push(attemptNumber);
+
+        setInfo(`✅ Correct! "${state.track.name}" — guessed on attempt #${attemptNumber}. Total correct: ${state.stats.correctSongs}`);
+
+        // short delay so user sees success, then auto-fetch a new song
+        setTimeout(() => {
+          fetchSeed();
+        }, 1200);
+      } else {
+        // incorrect: advance round (longer snippet) and notify user
         state.round = Math.min(state.round + 1, SNIPPET_LENGTHS.length - 1);
-        setInfo(`Wrong. Next snippet will be ${SNIPPET_LENGTHS[state.round]}s.`);
+        setInfo(`❌ Wrong. Next snippet will be ${SNIPPET_LENGTHS[state.round]}s.`);
       }
     })
-    .catch(err => setError(err));
+    .catch(err => {
+      setError("Network error: " + err);
+      setInfo("");
+    });
 }
 
-playButton?.addEventListener("click", (e)=>{ e.preventDefault(); playSnippet(); });
-newButton?.addEventListener("click", (e)=>{ e.preventDefault(); fetchSeed(); });
+/* Wire up event listeners */
+playButton?.addEventListener("click", (e) => { e.preventDefault(); playSnippet(); });
+newButton?.addEventListener("click", (e) => { e.preventDefault(); fetchSeed(); });
 guessForm?.addEventListener("submit", submitGuess);
 
-window.addEventListener("load", fetchSeed);
+/* Initialize on load */
+window.addEventListener("load", () => {
+  renderStats();
+  fetch("/api/session-info")
+    .then(r => r.json())
+    .then(si => {
+      if (si.needs_auth) {
+        setError("Please connect your Spotify account (click Connect on the landing page).");
+        setInfo("");
+      } else {
+        fetchSeed();
+      }
+    })
+    .catch(() => {
+      // If session-info fails, still try to fetch a seed (will show proper errors)
+      fetchSeed();
+    });
+});

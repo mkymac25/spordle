@@ -1,1 +1,43 @@
-temp
+cat > templates/index.html <<'HTML'
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Spordle — Wordle for Songs</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+</head>
+<body>
+  <div id="root" class="container">
+    <h1>🎧 Spordle</h1>
+    <p class="subtitle">Guess the song from short audio snippets (1s → 10s). Connect your Spotify to start.</p>
+
+    <div id="auth" style="display:none;">
+      <p>Please <a id="login-link" href="/login">connect with Spotify</a> to play.</p>
+    </div>
+
+    <div id="game" style="display:none;">
+      <div id="info" class="info"></div>
+
+      <div class="controls">
+        <button id="play-snippet">Play snippet</button>
+        <button id="fetch-new">New song</button>
+      </div>
+
+      <audio id="audio" controls></audio>
+
+      <form id="guess-form" class="guess-form">
+        <input id="guess-input" placeholder="Type song title here" autocomplete="off" />
+        <button type="submit">Guess</button>
+      </form>
+
+      <div id="history" class="history"></div>
+    </div>
+
+    <div id="errors" class="errors"></div>
+  </div>
+
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>
+HTML

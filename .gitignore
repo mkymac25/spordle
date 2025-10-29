@@ -1,1 +1,18 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+env/
+venv/
+.venv/
+.Python
 
+# dotenv
+.env
+
+# macOS
+.DS_Store
+
+# caches
+.cache

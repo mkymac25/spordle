@@ -1,4 +1,3 @@
-cat > static/app.js <<'JS'
 // static/app.js
 const SNIPPET_LENGTHS = [1, 2, 5, 7, 10];
 
@@ -131,4 +130,4 @@ window.addEventListener("load", () => {
     .then(si => { fetchSeed(); })
     .catch(() => { fetchSeed(); });
 });
-JS
+

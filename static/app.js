@@ -1,16 +1,13 @@
 // static/app.js
-// Wordle-for-songs frontend that controls playback on user's active Spotify device via backend.
-// Tracks stats: total correct songs and which attempt each correct guess occurred on.
-
 const SNIPPET_LENGTHS = [1, 2, 5, 7, 10];
 
 let state = {
   track: null,
-  round: 0, // 0 = first snippet (1s), 1 = second snippet (2s), ...
-  history: [], // array of guess results for current song
+  round: 0,
+  history: [],
   stats: {
     correctSongs: 0,
-    attemptsPerSong: [] // push attempt number (1..n) for each correct song
+    totalAttemptsForCorrectSongs: 0
   },
   playing: false
 };
@@ -43,11 +40,12 @@ function renderHistory() {
 
 function renderStats() {
   statCorrectSpan.textContent = state.stats.correctSongs;
-  statAttemptsSpan.textContent = state.stats.attemptsPerSong.length > 0 ? state.stats.attemptsPerSong.join(", ") : "—";
+  const avg = state.stats.correctSongs > 0
+    ? (state.stats.totalAttemptsForCorrectSongs / state.stats.correctSongs).toFixed(2)
+    : "—";
+  statAttemptsSpan.textContent = avg;
 }
 
-/* Fetch a seed track from backend (random top track)
-   Resets local round & history for the new song. */
 function fetchSeed() {
   clearError();
   setInfo("Fetching a new track...");
@@ -68,7 +66,6 @@ function fetchSeed() {
       state.round = 0;
       state.history = [];
       state.playing = false;
-      setInfo(`Artist hint: ${data.artists.join(", ")}`);
       renderHistory();
     })
     .catch(err => {
@@ -77,8 +74,6 @@ function fetchSeed() {
     });
 }
 
-/* Trigger playback on user's active Spotify device via backend.
-   Disables Play button while snippet is playing to avoid overlapping calls. */
 function playSnippet() {
   clearError();
   if (!state.track) { setError("No track loaded — click New song."); return; }
@@ -119,9 +114,6 @@ function updatePlayButtonState() {
   playButton.textContent = state.playing ? "Playing…" : "Play snippet";
 }
 
-/* Submit a guess to the backend for fuzzy checking.
-   When accepted: increment stats, record attempt number, auto-fetch a new song.
-   When rejected: advance round so next snippet will be longer. */
 function submitGuess(ev) {
   ev.preventDefault();
   clearError();
@@ -147,7 +139,7 @@ function submitGuess(ev) {
     renderHistory();
     guessInput.value = "";
 
-    // Show hint if round is 2,3,4 (3rd-5th guess, 0-indexed)
+    // Show hint only on guesses 3-5 (round 2-4)
     if (state.round >= 2 && state.round < 5) {
       setInfo(`Hint: Artist(s) — ${state.track.artists.join(", ")}`);
     }
@@ -155,56 +147,12 @@ function submitGuess(ev) {
     if (res.accepted) {
       const attemptNumber = Math.min(state.round + 1, SNIPPET_LENGTHS.length);
       state.stats.correctSongs += 1;
-      state.stats.attemptsPerSong.push(attemptNumber);
+      state.stats.totalAttemptsForCorrectSongs += attemptNumber;
 
       setInfo(`✅ Correct! "${state.track.name}" — guessed on attempt #${attemptNumber}. Total correct: ${state.stats.correctSongs}`);
 
-      // Keep info visible for 5 seconds before next song
       setTimeout(fetchSeed, 5000);
       state.round = 0;
       state.history = [];
     } else {
       state.round++;
-      if (state.round >= 5) {
-        // max guesses reached → song failed
-        setInfo(`❌ Max guesses reached. The song was "${state.track.name}" by ${state.track.artists.join(", ")}.`);
-        setTimeout(fetchSeed, 5000); // move to next song after 5s
-        state.round = 0;
-        state.history = [];
-      } else {
-        // show message for 5s before letting user continue
-        const snippetDuration = SNIPPET_LENGTHS[Math.min(state.round, SNIPPET_LENGTHS.length-1)];
-        setInfo(`❌ Wrong. Next snippet will be ${snippetDuration}s.`);
-      }
-    }
-  })
-  .catch(err => {
-    setError("Network error: " + err);
-    setInfo("");
-  });
-}
-
-
-/* Wire up event listeners */
-playButton?.addEventListener("click", (e) => { e.preventDefault(); playSnippet(); });
-newButton?.addEventListener("click", (e) => { e.preventDefault(); fetchSeed(); });
-guessForm?.addEventListener("submit", submitGuess);
-
-/* Initialize on load */
-window.addEventListener("load", () => {
-  renderStats();
-  fetch("/api/session-info")
-    .then(r => r.json())
-    .then(si => {
-      if (si.needs_auth) {
-        setError("Please connect your Spotify account (click Connect on the landing page).");
-        setInfo("");
-      } else {
-        fetchSeed();
-      }
-    })
-    .catch(() => {
-      // If session-info fails, still try to fetch a seed (will show proper errors)
-      fetchSeed();
-    });
-});

@@ -130,46 +130,49 @@ function submitGuess(ev) {
   const guess = guessInput.value.trim();
   if (!guess) return;
   setInfo("Checking guess...");
+  
   fetch("/api/check-guess", {
     method: "POST",
     headers: {"Content-Type": "application/json"},
     body: JSON.stringify({ guess, correct_title: state.track.name })
   })
-    .then(r => r.json())
-    .then(res => {
-      if (res.error) {
-        setError("Server error: " + res.error);
-        setInfo("");
-        return;
-      }
-
-      // push result to history
-      state.history.push(res);
-      renderHistory();
-      guessInput.value = "";
-
-      if (res.accepted) {
-        // user guessed correctly on this round
-        const attemptNumber = Math.min(state.round + 1, SNIPPET_LENGTHS.length);
-        state.stats.correctSongs += 1;
-        state.stats.attemptsPerSong.push(attemptNumber);
-
-        setInfo(`✅ Correct! "${state.track.name}" — guessed on attempt #${attemptNumber}. Total correct: ${state.stats.correctSongs}`);
-
-        // short delay so user sees success, then auto-fetch a new song
-        setTimeout(() => {
-          fetchSeed();
-        }, 1200);
-      } else {
-        // incorrect: advance round (longer snippet) and notify user
-        state.round = Math.min(state.round + 1, SNIPPET_LENGTHS.length - 1);
-        setInfo(`❌ Wrong. Next snippet will be ${SNIPPET_LENGTHS[state.round]}s.`);
-      }
-    })
-    .catch(err => {
-      setError("Network error: " + err);
+  .then(r => r.json())
+  .then(res => {
+    if (res.error) {
+      setError("Server error: " + res.error);
       setInfo("");
-    });
+      return;
+    }
+
+    state.history.push(res);
+    renderHistory();
+    guessInput.value = "";
+
+    if (res.accepted) {
+      const attemptNumber = Math.min(state.round + 1, SNIPPET_LENGTHS.length);
+      state.stats.correctSongs += 1;
+      state.stats.attemptsPerSong.push(attemptNumber);
+      setInfo(`✅ Correct! "${state.track.name}" — guessed on attempt #${attemptNumber}. Total correct: ${state.stats.correctSongs}`);
+      // automatically fetch new song after short delay
+      setTimeout(fetchSeed, 1200);
+    } else {
+      // incorrect guess
+      state.round++;
+      if (state.round >= 5) {
+        // max 5 guesses reached → song failed
+        setInfo(`❌ Max guesses reached. The song was "${state.track.name}" by ${state.track.artists.join(", ")}.`);
+        setTimeout(fetchSeed, 2000); // move to next song
+        state.round = 0;
+        state.history = [];
+      } else {
+        setInfo(`❌ Wrong. Next snippet will be ${SNIPPET_LENGTHS[Math.min(state.round, SNIPPET_LENGTHS.length-1)]}s.`);
+      }
+    }
+  })
+  .catch(err => {
+    setError("Network error: " + err);
+    setInfo("");
+  });
 }
 
 /* Wire up event listeners */

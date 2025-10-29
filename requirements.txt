@@ -1,5 +1,5 @@
 Flask==2.3.3
-spotipy==2.27.1
+spotipy==2.25.1
 fuzzywuzzy==0.18.0
 python-dotenv==1.0.0
 gunicorn==21.2.0

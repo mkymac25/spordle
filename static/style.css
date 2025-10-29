@@ -12,5 +12,4 @@ button{background:var(--accent);color:#fff;border:none;padding:8px 12px;border-r
 .history{margin-top:16px;border-top:1px solid rgba(255,255,255,0.03);padding-top:12px;color:var(--muted);}
 .history-item { padding:6px 0; }
 .errors{margin-top:14px;color:#ffb4b4;font-size:13px;}
-.info{margin-top:12px;color:#fff;font-size:14px;}
-.stats { margin-top
+.info{margin-top:

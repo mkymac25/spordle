@@ -1,5 +1,4 @@
-Flask>=2.0
-requests>=2.28
-gunicorn
-python-dotenv
-rapidfuzz
+Flask==2.3.6
+spotipy==2.27.1
+fuzzywuzzy==0.18.0
+python-dotenv==1.0.0

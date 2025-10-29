@@ -7,29 +7,24 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
 </head>
 <body>
-  <div id="root" class="container">
+  <div class="container">
     <h1>🎧 Spordle</h1>
-    <p class="subtitle">Guess the song from short audio snippets (1s → 10s).</p>
+    <p class="subtitle">Guess the song from short snippets on your active Spotify device.</p>
 
-    <div id="game">
-      <div id="info" class="info"></div>
-
-      <div class="controls">
-        <button id="play-snippet">Play snippet</button>
-        <button id="fetch-new">New song</button>
-        <a href="/logout"><button>Logout</button></a>
-      </div>
-
-      <audio id="audio" controls></audio>
-
-      <form id="guess-form" class="guess-form">
-        <input id="guess-input" placeholder="Type song title here" autocomplete="off" />
-        <button type="submit">Guess</button>
-      </form>
-
-      <div id="history" class="history"></div>
-      <div id="errors" class="errors"></div>
+    <div class="controls">
+      <button id="play-snippet">Play snippet</button>
+      <button id="fetch-new">New song</button>
+      <a href="/logout"><button>Logout</button></a>
     </div>
+
+    <form id="guess-form" class="guess-form">
+      <input id="guess-input" placeholder="Type song title here" autocomplete="off" />
+      <button type="submit">Guess</button>
+    </form>
+
+    <div id="info" class="info"></div>
+    <div id="history" class="history"></div>
+    <div id="errors" class="errors"></div>
   </div>
 
   <script src="{{ url_for('static', filename='app.js') }}"></script>

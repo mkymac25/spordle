@@ -1,34 +1,26 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Guessify - Instructions</title>
-  <link rel="stylesheet" href="/static/style.css" />
+    <meta charset="UTF-8">
+    <title>Instructions - Guessify</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-  <a href="/" class="logo-link">
-    <img src="/images/guessifyWhite.png" alt="Guessify Logo" class="logo">
-  </a>
+    <header>
+        <img src="{{ url_for('static', filename='images/guessifyWhite.png') }}" class="logo">
+        <a href="{{ url_for('logout') }}" class="logout-btn">Logout</a>
+    </header>
 
-  <div class="instructions-container">
-    <h1>Welcome to Guessify!</h1>
-    <p>
-      Hello and welcome to <strong>Guessify</strong>!  
-      This is a game that I made to play with my friends and wanted to share it with all of you.
-    </p>
-    <p>
-      Since I can’t play music straight from my website, please follow the steps below so you can enjoy the game. Thank you!
-    </p>
-
-    <ol>
-      <li>
-        Open the <a href="https://open.spotify.com/" target="_blank" rel="noopener noreferrer">Spotify Web Player</a> in a new tab (or on another device)
-      </li>
-      <li>Once you have it open and playing, press Continue to start the game</li>
-    </ol>
-
-    <a href="/game" class="continue-button">Continue</a>
-  </div>
+    <main>
+        <div class="instructions-container">
+            <h1>Hello and welcome to Guessify!</h1>
+            <p>This is a game I made to play with friends and share with you all. Since music can’t be streamed directly from this website, please follow the instructions below.</p>
+            <ol>
+                <li>Open the <a href="https://open.spotify.com" target="_blank">Spotify Web Player</a> in a new tab (or device).</li>
+                <li>Press Continue below to start the game.</li>
+            </ol>
+            <a href="{{ url_for('game') }}" class="continue-btn">Continue</a>
+        </div>
+    </main>
 </body>
 </html>

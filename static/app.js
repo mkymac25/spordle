@@ -10,6 +10,11 @@ async function fetchTrack() {
     currentTrack = data;
     document.getElementById("track-name").textContent = data.name;
     document.getElementById("track-artists").textContent = data.artists.join(", ");
+
+    // Clear previous guesses
+    document.getElementById("guesses-list").innerHTML = "";
+    document.getElementById("feedback").textContent = "";
+    document.getElementById("guess-input").value = "";
 }
 
 async function playSnippet() {
@@ -28,7 +33,8 @@ async function playSnippet() {
 }
 
 async function submitGuess() {
-    const guess = document.getElementById("guess-input").value.trim();
+    const guessInput = document.getElementById("guess-input");
+    const guess = guessInput.value.trim();
     if (!guess || !currentTrack) return;
 
     const res = await fetch("/api/check-guess", {
@@ -37,17 +43,31 @@ async function submitGuess() {
         body: JSON.stringify({guess: guess})
     });
     const data = await res.json();
+
+    // Add guess to guesses list
+    const li = document.createElement("li");
+    li.textContent = guess + (data.accepted ? " ✅" : " ❌");
+    document.getElementById("guesses-list").appendChild(li);
+
     const fb = document.getElementById("feedback");
     if (data.accepted) {
         fb.textContent = `Correct! 🎉 The song was "${data.correct_title_raw}"`;
         await fetchTrack(); // next track
-        document.getElementById("guess-input").value = "";
     } else {
         fb.textContent = `Wrong! Try again.`;
     }
+
+    guessInput.value = "";
+    guessInput.focus();
 }
 
+// Event listeners
 document.getElementById("play-btn").addEventListener("click", playSnippet);
 document.getElementById("guess-btn").addEventListener("click", submitGuess);
+
+// Enter key submission
+document.getElementById("guess-input").addEventListener("keyup", function(e) {
+    if (e.key === "Enter") submitGuess();
+});
 
 window.onload = fetchTrack;

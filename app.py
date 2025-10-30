@@ -272,13 +272,12 @@ def play_snippet():
 
     Behavior:
       - If "full" is true: start playback at position 0 and DO NOT pause (plays full song).
-      - Otherwise: start playback at position 0, WAIT until playback actually starts (poll),
+      - Otherwise: try to stop any playback first, start playback at position 0, WAIT until playback actually starts (poll),
         then sleep for duration seconds, then pause.
     """
     sp = get_spotify()
     if not sp:
         return jsonify({"needs_auth": True})
-
     data = request.get_json(force=True) or {}
     track_uri = data.get("uri")
     full = bool(data.get("full", False))
@@ -292,7 +291,17 @@ def play_snippet():
     if not active:
         return jsonify({"error": "no-active-device"}), 400
     device_id = active["id"]
+
     try:
+        # Force stop existing playback first (best-effort)
+        try:
+            sp.pause_playback(device_id=device_id)
+            # tiny delay to allow device to acknowledge
+            time.sleep(0.15)
+        except Exception:
+            # ignore errors pausing; continue
+            pass
+
         # Start playback from the VERY beginning
         sp.start_playback(device_id=device_id, uris=[track_uri], position_ms=0)
 

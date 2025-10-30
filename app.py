@@ -1,21 +1,17 @@
 # app.py
 """
-Guessify / Spordle backend (single-file Flask app)
-
-Features:
-- Spotify OAuth via Spotipy
-- seed-track avoids repeating tracks within the Flask session
-- /instructions page (served from static/instructions.html) shown after login
-- persistent per-user stats (SQLite via SQLAlchemy)
-- rapidfuzz for fuzzy matching
-- title normalization to ignore parentheticals, "feat." parts, remasters, etc.
-- serves index/instructions/game pages from static/
+Guessify backend (serves HTML from templates/):
+- Uses rapidfuzz for fuzzy matching
+- Avoids repeating tracks in session
+- Persists user stats via SQLite (SQLAlchemy)
+- Shows instructions page after Spotify login
+- Serves index/instructions/game via Flask templates (templates/)
 """
 import os
 import time
 import random
 import re
-from flask import Flask, redirect, url_for, session, request, jsonify
+from flask import Flask, redirect, url_for, session, request, jsonify, render_template, send_from_directory
 from spotipy import Spotify
 from spotipy.oauth2 import SpotifyOAuth
 from rapidfuzz import fuzz
@@ -25,7 +21,8 @@ from sqlalchemy import create_engine, Column, Integer, String
 from sqlalchemy.orm import declarative_base, sessionmaker, scoped_session
 
 # ---------- Config ----------
-app = Flask(__name__, static_folder="static", static_url_path="/static")
+# Note: do NOT set static_folder to "templates" — keep default static folder for assets.
+app = Flask(__name__, static_folder="static", static_url_path="/static", template_folder="templates")
 app.secret_key = os.environ.get("FLASK_SECRET", "dev-secret-change-me")
 
 SPOTIFY_CLIENT_ID = os.environ.get("SPOTIFY_CLIENT_ID")
@@ -64,31 +61,21 @@ def get_spotify():
     return Spotify(auth=access_token)
 
 def normalize_title(t: str) -> str:
-    """Normalize a track title: lowercase, remove parentheticals/brackets/braces,
-    remove feat/ft/featuring suffixes, remove trailing '- ...' sections, remove punctuation,
-    collapse whitespace."""
+    """Normalize a track title for fuzzy matching."""
     if not t:
         return ""
     s = t.lower()
-    # remove parenthesis, brackets, braces content
     s = re.sub(r'\([^)]*\)', ' ', s)
     s = re.sub(r'\[[^\]]*\]', ' ', s)
     s = re.sub(r'\{[^}]*\}', ' ', s)
-    # remove "feat", "ft", "featuring" and anything after them
     s = re.sub(r'\b(?:feat|ft|featuring)\b[.:]?\s*.*$', ' ', s)
-    # remove content after hyphen/en-dash/em-dash (common remaster/version info)
     s = re.split(r'\s[-–—]\s', s)[0]
-    # remove punctuation except word characters and spaces
     s = re.sub(r'[^\w\s]', ' ', s)
-    # collapse whitespace
     s = re.sub(r'\s+', ' ', s).strip()
     return s
 
 def _collect_candidate_tracks(sp):
-    """Collect tracks from currently playing, recently played, and top tracks.
-    Returns shuffled list of unique track dicts (spotipy track objects)."""
     candidates = {}
-    # currently playing
     try:
         cur = sp.current_user_playing_track()
         if cur and cur.get("item"):
@@ -98,7 +85,6 @@ def _collect_candidate_tracks(sp):
     except Exception:
         pass
 
-    # recently played
     try:
         rp = sp.current_user_recently_played(limit=50)
         for it in rp.get("items", []):
@@ -108,7 +94,6 @@ def _collect_candidate_tracks(sp):
     except Exception:
         pass
 
-    # top tracks
     try:
         top = sp.current_user_top_tracks(limit=50, time_range="medium_term")
         for t in top.get("items", []):
@@ -121,26 +106,25 @@ def _collect_candidate_tracks(sp):
     random.shuffle(cand_list)
     return cand_list
 
-# ---------- Routes: static pages ----------
+# ---------- Routes: templates ----------
 @app.route("/")
 def index():
-    # serve static/index.html
-    return app.send_static_file("index.html")
+    # serve templates/index.html (Jinja will still just render static HTML)
+    return render_template("index.html")
 
 @app.route("/instructions")
 def instructions():
-    # requires login; if not logged in, redirect to index
     if "token_info" not in session:
         return redirect(url_for("index"))
-    return app.send_static_file("instructions.html")
+    return render_template("instructions.html")
 
 @app.route("/game")
 def game():
     if "token_info" not in session:
         return redirect(url_for("index"))
-    return app.send_static_file("game.html")
+    return render_template("game.html")
 
-# login flow (opens Spotify auth page)
+# Login / Callback
 @app.route("/login")
 def login():
     sp_oauth = SpotifyOAuth(client_id=SPOTIFY_CLIENT_ID,
@@ -150,7 +134,6 @@ def login():
     auth_url = sp_oauth.get_authorize_url()
     return redirect(auth_url)
 
-# callback exchanges code for token and redirects to instructions page
 @app.route("/callback")
 def callback():
     sp_oauth = SpotifyOAuth(client_id=SPOTIFY_CLIENT_ID,
@@ -161,9 +144,8 @@ def callback():
     if not code:
         return "Missing code", 400
     token_info = sp_oauth.get_access_token(code)
-    # store token info in session for get_spotify()
     session["token_info"] = token_info
-    # fetch user id if possible (for persisted stats)
+
     sp = get_spotify()
     if sp:
         try:
@@ -171,10 +153,10 @@ def callback():
             session["spotify_user_id"] = profile.get("id")
         except Exception:
             session["spotify_user_id"] = None
-    # initialize session-tracking containers
+
     session.setdefault("played_tracks", [])
     session.pop("current_track", None)
-    # redirect user to instructions page (new step)
+
     return redirect(url_for("instructions"))
 
 @app.route("/logout")
@@ -208,7 +190,6 @@ def seed_track():
             "artists": [a.get("name") for a in track.get("artists", [])],
             "uri": track.get("uri")
         }
-        # mark as played in this Flask session
         played.append(track_id)
         session["played_tracks"] = played
         return jsonify({
@@ -258,7 +239,6 @@ def check_guess():
     if not guess_raw or not correct_title_raw:
         return jsonify({"error": "missing-guess-or-correct-title"}), 400
 
-    # Normalize both guess and correct title to ignore parentheticals etc.
     guess_norm = normalize_title(guess_raw)
     correct_norm = normalize_title(correct_title_raw)
     if not guess_norm:
@@ -332,6 +312,17 @@ def report_result():
     }
     db.close()
     return jsonify({"ok": True, "user_stats": user_stats})
+
+# ---------- Debug helper (optional) ----------
+@app.route("/_list_static")
+def _list_static():
+    import os
+    static_dir = app.static_folder or "static"
+    files = []
+    for root, dirs, filenames in os.walk(static_dir):
+        for f in filenames:
+            files.append(os.path.relpath(os.path.join(root, f), static_dir))
+    return jsonify({"files": sorted(files)})
 
 # ---------- Run ----------
 if __name__ == "__main__":

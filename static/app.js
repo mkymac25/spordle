@@ -13,10 +13,37 @@
   let waitingForSnippet = false;
 
   // DOM refs (set on DOMContentLoaded)
-  let playBtn, playContainer, guessInput, submitBtn, feedbackEl, guessesList, logoutBtn;
+  let playBtn = null;
+  let playContainer = null;
+  let guessInput = null;
+  let submitBtn = null;
+  let feedbackEl = null;
+  let guessesList = null;
+  let logoutBtn = null;
+
+  // restore the Play Snippet button inside playContainer and wire it up
+  function restorePlayButton(initialLabel = `Play ${SNIPPETS[0]}s Snippet`) {
+    if (!playContainer) return;
+    playContainer.innerHTML = ''; // clear whatever's there
+    const btn = document.createElement('button');
+    btn.id = 'playSnippet';
+    btn.className = 'btn primary';
+    btn.disabled = true; // will be enabled after prepare wait
+    btn.textContent = initialLabel;
+    playContainer.appendChild(btn);
+
+    // update the reference and attach listener
+    playBtn = document.getElementById('playSnippet');
+    if (playBtn) {
+      playBtn.addEventListener('click', playSnippet);
+    }
+  }
 
   // fetch a new seed track and reset state
   async function fetchTrack() {
+    // ensure the play button is present (restore if it was replaced)
+    restorePlayButton();
+
     setPlayDisabled(true, "Loading...");
     try {
       const res = await fetch("/api/seed-track");
@@ -137,8 +164,7 @@
     const text = guessInput.value.trim();
     if (!text) return;
 
-    // optimistic local append with unknown accepted state (null until server responds)
-    // But we'll push after response to ensure we have accepted flag
+    // clear and focus
     guessInput.value = "";
     guessInput.focus();
 
@@ -209,6 +235,8 @@
     // replace contents of playContainer
     playContainer.innerHTML = "";
     playContainer.appendChild(span);
+    // ensure playBtn reference is cleared (so no accidental clicks)
+    playBtn = null;
   }
 
   // send result to backend
@@ -220,7 +248,7 @@
         body: JSON.stringify({ accepted: accepted, attempts: attempts, track_id: track_id })
       });
     } catch (err) {
-      console.error("report-result error:", err);
+      console.error("report-result error", err);
     }
   }
 
@@ -235,7 +263,6 @@
 
   // hookup DOM and events
   document.addEventListener("DOMContentLoaded", () => {
-    playBtn = document.getElementById("playSnippet");
     playContainer = document.getElementById("playContainer");
     guessInput = document.getElementById("guessInput");
     submitBtn = document.getElementById("submitGuess");
@@ -243,12 +270,15 @@
     guessesList = document.getElementById("guessesList");
     logoutBtn = document.getElementById("logoutBtn");
 
-    if (!playBtn || !playContainer || !guessInput || !submitBtn || !feedbackEl || !guessesList) {
+    if (!playContainer || !guessInput || !submitBtn || !feedbackEl || !guessesList) {
       console.error("Missing DOM elements required by app.js");
       return;
     }
 
-    playBtn.addEventListener("click", playSnippet);
+    // create initial play button
+    restorePlayButton();
+
+    // wire inputs
     submitBtn.addEventListener("click", submitGuess);
     guessInput.addEventListener("keyup", (e) => { if (e.key === "Enter") submitGuess(); });
 

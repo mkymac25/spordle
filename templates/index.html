@@ -2,14 +2,16 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Guessify Login</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <title>Guessify</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
-    <div class="login-container">
-        <img src="{{ url_for('static', filename='images/guessifyWhite.png') }}" class="logo">
+    <header>
+        <img src="{{ url_for('static', filename='images/GuessifyWhite.png') }}" alt="Guessify Logo" class="logo">
+    </header>
+    <main>
         <h1>Welcome to Guessify!</h1>
-        <a href="{{ url_for('login') }}" class="login-btn">Login with Spotify</a>
-    </div>
+        <a class="btn" href="{{ url_for('login') }}">Login with Spotify</a>
+    </main>
 </body>
 </html>

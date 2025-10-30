@@ -2,25 +2,22 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Instructions - Guessify</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <title>Guessify - Instructions</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
     <header>
-        <img src="{{ url_for('static', filename='images/guessifyWhite.png') }}" class="logo">
-        <a href="{{ url_for('logout') }}" class="logout-btn">Logout</a>
+        <img src="{{ url_for('static', filename='images/GuessifyWhite.png') }}" alt="Guessify Logo" class="logo">
+        <a class="logout" href="{{ url_for('logout') }}">Logout</a>
     </header>
-
     <main>
-        <div class="instructions-container">
-            <h1>Hello and welcome to Guessify!</h1>
-            <p>This is a game I made to play with friends and share with you all. Since music can’t be streamed directly from this website, please follow the instructions below.</p>
-            <ol>
-                <li>Open the <a href="https://open.spotify.com" target="_blank">Spotify Web Player</a> in a new tab (or device).</li>
-                <li>Press Continue below to start the game.</li>
-            </ol>
-            <a href="{{ url_for('game') }}" class="continue-btn">Continue</a>
-        </div>
+        <h2>Hello and welcome to Guessify!</h2>
+        <p>This is a game I made to play with friends and wanted to share it with all of you. Since we can’t play music directly from the website, please follow these instructions:</p>
+        <ol>
+            <li>Open the <a href="https://open.spotify.com/" target="_blank">Spotify Web Player</a> in a new tab (or device).</li>
+            <li>Press <strong>Continue</strong> below to start the game.</li>
+        </ol>
+        <a class="btn" href="{{ url_for('game') }}">Continue</a>
     </main>
 </body>
 </html>

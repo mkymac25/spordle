@@ -150,3 +150,50 @@ input[type="text"]:focus {
     width: 200px;
   }
 }
+
+/* ===== Instructions Page ===== */
+.instructions-container {
+  max-width: 700px;
+  margin: 140px auto 0;
+  padding: 40px;
+  background: rgba(0, 0, 0, 0.65);
+  border-radius: 20px;
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.4);
+  text-align: center;
+  color: #fff;
+  font-size: 1.1rem;
+}
+
+.instructions-container h1 {
+  font-size: 2rem;
+  margin-bottom: 20px;
+  color: #1DB954; /* Spotify green */
+}
+
+.instructions-container a {
+  color: #1DB954;
+  text-decoration: underline;
+}
+
+.instructions-container ol {
+  text-align: left;
+  margin: 20px auto;
+  max-width: 500px;
+}
+
+.continue-button {
+  display: inline-block;
+  margin-top: 30px;
+  padding: 15px 35px;
+  background-color: #1DB954;
+  color: #fff;
+  font-weight: bold;
+  text-decoration: none;
+  border-radius: 10px;
+  transition: background-color 0.3s ease, transform 0.2s ease;
+}
+
+.continue-button:hover {
+  background-color: #17a74a;
+  transform: scale(1.05);
+}

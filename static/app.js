@@ -1,3 +1,8 @@
+// static/js/app.js
+// Frontend logic: seed track, play snippet (via backend), submit guesses,
+// show guesses list, enforce 5 guesses, reveal song on correct or out-of-guesses,
+// and request backend to play the full song from the beginning when finished.
+
 let currentTrack = null;
 let guessesCount = 0;
 const maxGuesses = 5;
@@ -27,28 +32,42 @@ async function fetchTrack() {
 async function playSnippet() {
     if (!currentTrack) return;
 
-    const duration = 5;
-    const res = await fetch("/api/play-snippet", {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({uri: currentTrack.uri, duration: duration})
-    });
-    const data = await res.json();
-    if (data.error) {
-        alert("Error playing snippet: " + data.error);
+    const duration = 5; // seconds
+    try {
+        const res = await fetch("/api/play-snippet", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({uri: currentTrack.uri, duration: duration, full: false})
+        });
+        const data = await res.json();
+        if (data.error) {
+            console.error("play-snippet error:", data.error);
+            alert("Error playing snippet: " + data.error);
+        }
+    } catch (err) {
+        console.error("Network/play-snippet error:", err);
+        alert("Error contacting server to play snippet.");
     }
 }
 
 async function playFullSong() {
     if (!currentTrack) return;
-    const res = await fetch("/api/play-snippet", {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({uri: currentTrack.uri, duration: 0}) // 0 = play full
-    });
-    const data = await res.json();
-    if (data.error) {
-        alert("Error playing full song: " + data.error);
+
+    try {
+        const res = await fetch("/api/play-snippet", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            // request full playback (backend will NOT auto-pause)
+            body: JSON.stringify({uri: currentTrack.uri, full: true})
+        });
+        const data = await res.json();
+        if (data.error) {
+            console.error("play-full error:", data.error);
+            alert("Error playing full song: " + data.error);
+        }
+    } catch (err) {
+        console.error("Network/play-full error:", err);
+        alert("Error contacting server to play full song.");
     }
 }
 
@@ -78,15 +97,26 @@ async function submitGuess() {
             ? `Correct! 🎉 The song was "${data.correct_title_raw}"`
             : `Out of guesses! The song was "${data.correct_title_raw}"`;
 
-        // Show song info
+        // Show song info (title/artist)
         document.getElementById("song-info").style.display = "block";
 
         // Disable input
         guessInput.disabled = true;
         document.getElementById("guess-btn").disabled = true;
 
-        // Play full song
+        // Play full song from start on user's active Spotify device
         await playFullSong();
+
+        // Report result to backend (attempts can be guessesCount)
+        try {
+            await fetch("/api/report-result", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({accepted: !!data.accepted, attempts: guessesCount, track_id: currentTrack.id})
+            });
+        } catch (err) {
+            console.error("report-result error:", err);
+        }
 
         // After a short delay, load next track
         setTimeout(fetchTrack, 5000);
@@ -98,11 +128,19 @@ async function submitGuess() {
 }
 
 // Event listeners
-document.getElementById("play-btn").addEventListener("click", playSnippet);
-document.getElementById("guess-btn").addEventListener("click", submitGuess);
+document.addEventListener("DOMContentLoaded", () => {
+    const playBtn = document.getElementById("play-btn");
+    const guessBtn = document.getElementById("guess-btn");
+    const guessInput = document.getElementById("guess-input");
 
-document.getElementById("guess-input").addEventListener("keyup", function(e) {
-    if (e.key === "Enter") submitGuess();
+    playBtn.addEventListener("click", playSnippet);
+    guessBtn.addEventListener("click", submitGuess);
+
+    // Enter key submits guess
+    guessInput.addEventListener("keyup", function(e) {
+        if (e.key === "Enter") submitGuess();
+    });
+
+    // Load the first track
+    fetchTrack();
 });
-
-window.onload = fetchTrack;

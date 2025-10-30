@@ -1,41 +1,42 @@
-<!doctype html>
-<html>
+<!DOCTYPE html>
+<html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <title>Spordle — Game</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Guessify</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-  <div class="container">
-    <h1>🎧 Spordle</h1>
-    <p class="subtitle">Guess the song from short snippets on your active Spotify device.</p>
+    <div class="container">
+        <header>
+            <img src="{{ url_for('static', filename='images/guessifyWhite.png') }}" alt="Guessify Logo" class="logo">
+        </header>
 
-    <div class="controls">
-      <button id="play-snippet">Play snippet</button>
-      <button id="fetch-new">New song</button>
-      <a href="/logout"><button>Logout</button></a>
+        <main>
+            <h1>Guess the Song!</h1>
+
+            <div class="player">
+                <audio id="audio"></audio>
+                <button id="playSnippet">Play Snippet</button>
+            </div>
+
+            <div class="guess-container">
+                <input type="text" id="guessInput" placeholder="Enter song name">
+                <button id="submitGuess">Submit</button>
+            </div>
+
+            <div id="feedback" class="feedback"></div>
+
+            <div class="progress-bar">
+                <div class="progress"></div>
+            </div>
+        </main>
+
+        <footer>
+            <p>Guessify &copy; 2025</p>
+        </footer>
     </div>
 
-    <form id="guess-form" class="guess-form">
-      <input id="guess-input" placeholder="Type song title here" autocomplete="off" />
-      <button type="submit">Guess</button>
-    </form>
-
-    <div id="info" class="info"></div>
-
-    <div id="history" class="history"></div>
-
-    <!-- Stats -->
-    <div id="stats" class="stats">
-      <p>Played this session: <span id="stat-played">0</span></p>
-      <p>Total correct songs (persisted): <span id="stat-correct">0</span></p>
-      <p>Average attempts per correct song (persisted): <span id="stat-attempts">—</span></p>
-    </div>
-
-    <div id="errors" class="errors"></div>
-  </div>
-
-  <script src="{{ url_for('static', filename='app.js') }}"></script>
+    <script src="{{ url_for('static', filename='game.js') }}"></script>
 </body>
 </html>

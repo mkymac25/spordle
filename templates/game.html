@@ -2,40 +2,33 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Guessify</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-    <div class="container">
-        <header>
-            <img src="{{ url_for('static', filename='images/guessifyWhite.png') }}" alt="Guessify Logo" class="logo">
-        </header>
+    <header>
+        <img src="{{ url_for('static', filename='images/guessifyWhite.png') }}" class="logo">
+        <a href="{{ url_for('logout') }}" class="logout-btn">Logout</a>
+    </header>
 
-        <main>
-            <h1>Guess the Song!</h1>
+    <main>
+        <div class="game-container">
+            <div class="song-info">
+                <h2 id="song-title">Guess the Song!</h2>
+            </div>
 
-            <div class="player">
-                <audio id="audio"></audio>
-                <button id="playSnippet">Play Snippet</button>
+            <div class="controls">
+                <button id="play-snippet">Play Snippet</button>
             </div>
 
             <div class="guess-container">
-                <input type="text" id="guessInput" placeholder="Enter song name">
-                <button id="submitGuess">Submit</button>
+                <input type="text" id="guess-input" placeholder="Type your guess...">
+                <button id="submit-guess">Submit</button>
             </div>
 
-            <div id="feedback" class="feedback"></div>
-
-            <div class="progress-bar">
-                <div class="progress"></div>
-            </div>
-        </main>
-
-        <footer>
-            <p>Guessify &copy; 2025</p>
-        </footer>
-    </div>
+            <div id="feedback"></div>
+        </div>
+    </main>
 
     <script src="{{ url_for('static', filename='app.js') }}"></script>
 </body>

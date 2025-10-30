@@ -1,8 +1,4 @@
-/* static/style.css
-   Uses Poppins font (regular + 700).
-   Simple clean styling; logo and logout kept compact.
-*/
-
+/* static/style.css - Poppins + styling, includes small styles for song-title replacement and emoji spacing */
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;700&display=swap');
 
 :root{
@@ -70,6 +66,7 @@ input#guessInput{
   cursor:pointer;min-width:96px;
 }
 .btn.primary{background:var(--accent);border:none;color:#fff}
+.btn.disabled{opacity:0.6;cursor:not-allowed}
 .btn:hover{opacity:0.95}
 
 /* Feedback & guesses */
@@ -78,3 +75,8 @@ input#guessInput{
 .guesses{list-style:none;padding:0;margin:8px 0 0 0;display:inline-block;text-align:left}
 .guess-item{padding:6px 10px;border-radius:6px;margin-bottom:6px;background:rgba(255,255,255,0.02);color:var(--text);min-width:260px;font-weight:500}
 .small{margin:0 0 8px 0;font-size:14px;color:var(--muted)}
+
+/* Song title replacement style */
+.song-title-display{display:inline-block;text-align:center;padding:8px 12px;border-radius:8px;background:rgba(255,255,255,0.03)}
+.song-title-text{font-weight:700;font-size:16px}
+.song-artist-text{font-weight:500;color:var(--muted);font-size:13px;margin-top:4px}

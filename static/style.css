@@ -1,90 +1,80 @@
-/* static/style.css - simple and clean */
-:root {
-  --accent: #1DB954;
+/* static/style.css
+   Uses Poppins font (regular + 700).
+   Simple clean styling; logo and logout kept compact.
+*/
+
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;700&display=swap');
+
+:root{
   --bg: #121212;
   --card: #1f1f1f;
-  --text: #ffffff;
+  --accent: #1DB954;
   --muted: #bdbdbd;
+  --text: #ffffff;
 }
 
-* { box-sizing: border-box; }
-html,body { height: 100%; margin: 0; padding: 0; font-family: Inter, Arial, sans-serif; background: var(--bg); color: var(--text); }
-
-.topbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 20px;
-  background: var(--accent);
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  font-family: 'Poppins', Arial, sans-serif;
+  background:var(--bg);
+  color:var(--text);
+  -webkit-font-smoothing:antialiased;
+  -moz-osx-font-smoothing:grayscale;
 }
 
-.logo { height: 56px; width: auto; display: block; }
-
-.logout {
-  color: white;
-  text-decoration: none;
-  font-weight: 600;
-  padding: 8px 12px;
-  border-radius: 6px;
-  background: rgba(0,0,0,0.15);
+/* Top bar */
+.topbar{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:12px 20px;
+  background:var(--accent);
+}
+.logo{
+  height:56px;
+  width:auto;
+}
+.logout{
+  color:#fff;
+  text-decoration:none;
+  font-weight:700;
+  padding:8px 12px;
+  border-radius:6px;
+  background:rgba(0,0,0,0.12);
 }
 
-.main { display:flex; justify-content:center; padding: 30px 16px; }
-
-.game-card {
-  width: 100%;
-  max-width: 720px;
-  background: var(--card);
-  border-radius: 12px;
-  padding: 28px;
-  box-shadow: 0 6px 26px rgba(0,0,0,0.6);
-  text-align: center;
+/* Main card */
+.main{display:flex;justify-content:center;padding:30px 16px}
+.game-card{
+  width:100%;
+  max-width:720px;
+  background:var(--card);
+  border-radius:12px;
+  padding:28px;
+  box-shadow:0 6px 26px rgba(0,0,0,0.6);
+  text-align:center;
 }
+.title{font-weight:700;font-size:28px;margin-bottom:12px}
 
-.title { margin: 0 0 18px 0; font-size: 28px; }
-
-.controls { margin-bottom: 14px; }
-
-.guess-row { display: flex; justify-content: center; gap: 10px; margin: 12px 0; flex-wrap: wrap; }
-
-input#guessInput {
-  min-width: 260px;
-  max-width: 60%;
-  padding: 10px 12px;
-  border-radius: 8px;
-  border: none;
-  font-size: 16px;
-  outline: none;
+/* Controls & input */
+.controls{margin-bottom:14px}
+.guess-row{display:flex;justify-content:center;gap:10px;margin:12px 0;flex-wrap:wrap}
+input#guessInput{
+  min-width:260px;max-width:60%;
+  padding:10px 12px;border-radius:8px;border:none;font-size:16px;outline:none;
 }
-
-.btn {
-  background: rgba(255,255,255,0.06);
-  color: var(--text);
-  border: 1px solid rgba(255,255,255,0.06);
-  padding: 10px 16px;
-  border-radius: 8px;
-  font-weight: 600;
-  cursor: pointer;
-  min-width: 96px;
+.btn{
+  background:rgba(255,255,255,0.06);color:var(--text);
+  border:1px solid rgba(255,255,255,0.06);padding:10px 16px;border-radius:8px;font-weight:700;
+  cursor:pointer;min-width:96px;
 }
+.btn.primary{background:var(--accent);border:none;color:#fff}
+.btn:hover{opacity:0.95}
 
-.btn.primary {
-  background: var(--accent);
-  border: none;
-  color: white;
-}
-
-.btn:hover { opacity: 0.95; }
-
-.feedback {
-  margin-top: 12px;
-  min-height: 26px;
-  color: var(--muted);
-  font-weight: 600;
-}
-
-.guesses-container { margin-top: 18px; text-align: center; }
-.guesses { list-style: none; padding: 0; margin: 8px 0 0 0; display: inline-block; text-align: left; }
-.guess-item { padding: 6px 10px; border-radius: 6px; margin-bottom: 6px; background: rgba(255,255,255,0.02); color: var(--text); min-width: 260px; }
-
-.small { margin: 0 0 8px 0; font-size: 14px; color: var(--muted); }
+/* Feedback & guesses */
+.feedback{margin-top:12px;min-height:26px;color:var(--muted);font-weight:600}
+.guesses-container{margin-top:18px;text-align:center}
+.guesses{list-style:none;padding:0;margin:8px 0 0 0;display:inline-block;text-align:left}
+.guess-item{padding:6px 10px;border-radius:6px;margin-bottom:6px;background:rgba(255,255,255,0.02);color:var(--text);min-width:260px;font-weight:500}
+.small{margin:0 0 8px 0;font-size:14px;color:var(--muted)}

@@ -4,23 +4,30 @@
     <meta charset="UTF-8">
     <title>Guessify Game</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <script defer src="{{ url_for('static', filename='app.js') }}"></script>
 </head>
 <body>
-    <header>
-        <img src="{{ url_for('static', filename='images/guessifyWhite.png') }}" alt="Logo" class="logo">
-        <a href="{{ url_for('logout') }}" class="logout-btn">Logout</a>
-    </header>
+    <div class="header">
+        <img src="{{ url_for('static', filename='images/guessifyWhite.png') }}" class="logo">
+        <a href="{{ url_for('logout') }}" class="logout">Logout</a>
+    </div>
 
-    <main>
+    <div class="container">
         <h1>Guess the Song!</h1>
-        <p id="track-artists"></p>
+        <div id="song-info">
+            <p id="track-name">Loading track...</p>
+            <p id="track-artists"></p>
+        </div>
 
-        <input type="text" id="guess-input" placeholder="Enter your guess">
-        <button id="guess-btn">Guess</button>
-        <button id="next-btn">Next Snippet</button>
+        <button id="play-btn" class="button">Play Snippet</button>
 
-        <p id="feedback"></p>
-    </main>
+        <div>
+            <input type="text" id="guess-input" placeholder="Enter song name">
+            <button id="guess-btn" class="button">Submit Guess</button>
+        </div>
+
+        <div id="feedback"></div>
+    </div>
+
+    <script src="{{ url_for('static', filename='app.js') }}"></script>
 </body>
 </html>

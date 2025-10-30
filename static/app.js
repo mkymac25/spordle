@@ -1,204 +1,131 @@
-// static/app.js
-(() => {
-  const SNIPPETS = [1, 2, 3, 5, 7];
-  const MAX_GUESSES = 5;
+let currentTrack = null;
+let guessCount = 0;
+const maxGuesses = 5;
+const snippetDurations = [1, 2, 3, 5, 7];
+let snippetIndex = 0;
+let snippetPlaying = false;
+let waitingForSnippet = false;
 
-  let currentTrack = null;
-  let guesses = [];
-  let guessCount = 0;
+const playSnippetBtn = document.getElementById("playSnippet");
+const guessInput = document.getElementById("guessInput");
+const submitGuessBtn = document.getElementById("submitGuess");
+const guessesList = document.getElementById("guessesList");
+const message = document.getElementById("message");
+const logoutBtn = document.getElementById("logoutBtn");
 
-  // DOM
-  const playBtn = () => document.getElementById("playSnippet");
-  const guessInput = () => document.getElementById("guessInput");
-  const submitBtn = () => document.getElementById("submitGuess");
-  const feedback = () => document.getElementById("feedback");
-  const guessesList = () => document.getElementById("guessesList");
-
-  async function fetchTrack() {
-    try {
-      const res = await fetch("/api/seed-track");
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        feedback().textContent = err.error || "No tracks available";
-        currentTrack = null;
-        return;
-      }
-      currentTrack = await res.json();
-      guesses = [];
-      guessCount = 0;
-      renderGuesses();
-      feedback().textContent = "";
-      guessInput().value = "";
-      guessInput().disabled = false;
-      submitBtn().disabled = false;
-      guessInput().focus();
-      console.log("Loaded track:", currentTrack);
-    } catch (err) {
-      console.error("fetchTrack error", err);
-      feedback().textContent = "Network error loading track";
-    }
+async function loadNextTrack() {
+  disableSnippetButton("Loading...");
+  const res = await fetch("/api/seed-track");
+  if (!res.ok) {
+    message.textContent = "No more tracks available or error.";
+    disableSnippetButton("Unavailable");
+    return;
   }
 
-  function renderGuesses() {
-    const ul = guessesList();
-    ul.innerHTML = "";
-    for (let i = 0; i < guesses.length; i++) {
-      const li = document.createElement("li");
-      li.className = "guess-item";
-      li.textContent = `${i + 1}. ${guesses[i]}`;
-      ul.appendChild(li);
-    }
-  }
+  currentTrack = await res.json();
+  guessCount = 0;
+  snippetIndex = 0;
+  guessesList.innerHTML = "";
+  message.textContent = "";
 
-  // play a snippet (calls backend). Disables the button while request is in-flight.
-  async function playSnippet() {
-    if (!currentTrack) return;
-    const idx = Math.min(guessCount, SNIPPETS.length - 1);
-    const duration = SNIPPETS[idx];
+  // Wait 5 seconds before enabling snippet button
+  waitingForSnippet = true;
+  disableSnippetButton("Preparing...");
+  setTimeout(() => {
+    waitingForSnippet = false;
+    enableSnippetButton("Play 1s Snippet");
+  }, 5000);
+}
 
-    const btn = playBtn();
-    if (btn) btn.disabled = true;
-    feedback().textContent = `Playing ${duration}s snippet on your active Spotify device...`;
+function disableSnippetButton(text) {
+  playSnippetBtn.disabled = true;
+  playSnippetBtn.textContent = text;
+  playSnippetBtn.classList.add("opacity-50", "cursor-not-allowed");
+}
 
-    try {
-      const res = await fetch("/api/play-snippet", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ uri: currentTrack.uri, duration: duration, full: false })
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        console.error("play-snippet error", data);
-        feedback().textContent = "Could not play snippet: " + (data.error || res.statusText);
-      } else {
-        // backend returns after pause; re-enable button now
-        feedback().textContent = `Snippet finished (${duration}s).`;
-      }
-    } catch (err) {
-      console.error("play-snippet network error", err);
-      feedback().textContent = "Network error while requesting snippet.";
-    } finally {
-      if (btn) btn.disabled = false;
-    }
-  }
+function enableSnippetButton(text) {
+  playSnippetBtn.disabled = false;
+  playSnippetBtn.textContent = text;
+  playSnippetBtn.classList.remove("opacity-50", "cursor-not-allowed");
+}
 
-  // request backend to start full playback (position 0) and not auto-pause
-  async function playFull() {
-    if (!currentTrack) return;
-    feedback().textContent = "Starting full playback on your Spotify device...";
-    try {
-      const res = await fetch("/api/play-snippet", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ uri: currentTrack.uri, full: true })
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        console.error("play-full error", data);
-        feedback().textContent = "Could not start full playback: " + (data.error || res.statusText);
-      } else {
-        feedback().textContent = "Playing full song on your Spotify device...";
-      }
-    } catch (err) {
-      console.error("play-full network error", err);
-      feedback().textContent = "Network error while requesting full playback.";
-    }
-  }
+playSnippetBtn.addEventListener("click", async () => {
+  if (!currentTrack || snippetPlaying || waitingForSnippet) return;
+  snippetPlaying = true;
 
-  async function submitGuess() {
-    const guess = guessInput().value.trim();
-    if (!guess || !currentTrack) return;
+  const duration = snippetDurations[Math.min(snippetIndex, snippetDurations.length - 1)];
+  disableSnippetButton(`Playing ${duration}s...`);
 
-    guesses.push(guess);
-    guessCount++;
-    renderGuesses();
-    guessInput().value = "";
-    guessInput().focus();
-
-    // check guess
-    let data;
-    try {
-      const res = await fetch("/api/check-guess", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ guess: guess })
-      });
-      data = await res.json();
-      if (!res.ok) {
-        console.error("/api/check-guess error", data);
-        feedback().textContent = data.error || "Error checking guess";
-        return;
-      }
-    } catch (err) {
-      console.error("check-guess network error", err);
-      feedback().textContent = "Network error while checking guess.";
-      return;
-    }
-
-    if (data.accepted) {
-      feedback().innerHTML = `✅ Correct! The song was "<strong>${escapeHtml(data.correct_title_raw)}</strong>"`;
-      guessInput().disabled = true;
-      submitBtn().disabled = true;
-
-      // play full from start
-      await playFull();
-
-      // report result
-      reportResult(true, guessCount, currentTrack.id).catch(console.error);
-
-      // next track after short delay
-      setTimeout(fetchTrack, 6000);
-      return;
-    }
-
-    if (guessCount >= MAX_GUESSES) {
-      feedback().innerHTML = `❌ Out of guesses. The song was "<strong>${escapeHtml(data.correct_title_raw)}</strong>"`;
-      guessInput().disabled = true;
-      submitBtn().disabled = true;
-
-      // play full
-      await playFull();
-
-      reportResult(false, guessCount, currentTrack.id).catch(console.error);
-
-      setTimeout(fetchTrack, 6000);
-      return;
-    }
-
-    // incorrect but more guesses left
-    const remaining = MAX_GUESSES - guessCount;
-    feedback().textContent = `❌ Incorrect — ${remaining} guess${remaining === 1 ? "" : "es"} left.`;
-  }
-
-  async function reportResult(accepted, attempts, track_id) {
-    try {
-      await fetch("/api/report-result", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ accepted: accepted, attempts: attempts, track_id: track_id })
-      });
-    } catch (err) {
-      console.error("report-result error", err);
-    }
-  }
-
-  function escapeHtml(str) {
-    return String(str).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#39;");
-  }
-
-  // hookup
-  document.addEventListener("DOMContentLoaded", () => {
-    const p = playBtn();
-    const s = submitBtn();
-    const input = guessInput();
-
-    if (p) p.addEventListener("click", playSnippet);
-    if (s) s.addEventListener("click", submitGuess);
-    if (input) input.addEventListener("keyup", (e) => { if (e.key === "Enter") submitGuess(); });
-
-    fetchTrack();
+  const res = await fetch("/api/play-snippet", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ uri: currentTrack.uri, duration }),
   });
 
-  // expose for debug
-  window._guessify = { fetchTrack, playSnippet, submitGuess, playFull };
-})();
+  if (!res.ok) {
+    message.textContent = "Error playing snippet. Make sure Spotify is open.";
+  }
+
+  snippetIndex++;
+  if (snippetIndex < snippetDurations.length) {
+    enableSnippetButton(`Play ${snippetDurations[snippetIndex]}s Snippet`);
+  } else {
+    enableSnippetButton("Replay 7s Snippet");
+  }
+
+  snippetPlaying = false;
+});
+
+async function submitGuess() {
+  const guess = guessInput.value.trim();
+  if (!guess || !currentTrack) return;
+
+  const res = await fetch("/api/check-guess", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ guess }),
+  });
+
+  const data = await res.json();
+  guessInput.value = "";
+  const guessItem = document.createElement("li");
+  guessItem.textContent = guess;
+  guessesList.appendChild(guessItem);
+
+  guessCount++;
+
+  if (data.accepted) {
+    message.textContent = `✅ Correct! ${currentTrack.name} – ${currentTrack.artists.join(", ")}`;
+    playFullTrack();
+  } else if (guessCount >= maxGuesses) {
+    message.textContent = `❌ Out of guesses! The song was ${currentTrack.name} – ${currentTrack.artists.join(", ")}.`;
+    playFullTrack();
+  } else {
+    message.textContent = `Wrong guess (${guessCount}/${maxGuesses})`;
+  }
+}
+
+async function playFullTrack() {
+  disableSnippetButton("Playing full song...");
+  await fetch("/api/play-snippet", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ uri: currentTrack.uri, duration: 30 }), // play full song (adjust duration if you like)
+  });
+
+  setTimeout(() => loadNextTrack(), 3000);
+}
+
+submitGuessBtn.addEventListener("click", submitGuess);
+
+// Allow pressing Enter to submit
+guessInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") submitGuess();
+});
+
+logoutBtn.addEventListener("click", () => {
+  window.location.href = "/logout";
+});
+
+// Initial load
+loadNextTrack();

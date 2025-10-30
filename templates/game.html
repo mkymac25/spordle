@@ -1,35 +1,39 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>Guessify Game</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Guessify — Game</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
-    <div class="header">
-        <img src="{{ url_for('static', filename='images/guessifyWhite.png') }}" class="logo">
-        <a href="{{ url_for('logout') }}" class="logout">Logout</a>
-    </div>
+  <header class="topbar">
+    <img src="{{ url_for('static', filename='images/guessifyWhite.png') }}" alt="Guessify" class="logo">
+    <a id="logoutBtn" class="logout" href="{{ url_for('logout') }}">Logout</a>
+  </header>
 
-    <div class="container">
-        <h1>Guess the Song!</h1>
-        <div id="song-info" style="display: none;">
-            <p id="track-name"></p>
-            <p id="track-artists"></p>
-        </div>
+  <main class="main">
+    <section class="game-card">
+      <h1 class="title">Guess the Song!</h1>
 
-        <button id="play-btn" class="button">Play Snippet</button>
+      <div class="controls">
+        <button id="playSnippet" class="btn primary">▶ Play Snippet</button>
+      </div>
 
-        <div>
-            <input type="text" id="guess-input" placeholder="Enter song name">
-            <button id="guess-btn" class="button">Submit Guess</button>
-        </div>
+      <div class="guess-row">
+        <input id="guessInput" type="text" placeholder="Enter song name..." autocomplete="off" />
+        <button id="submitGuess" class="btn">Submit</button>
+      </div>
 
-        <div id="feedback"></div>
+      <div id="feedback" class="feedback" aria-live="polite"></div>
 
-        <ul id="guesses-list"></ul>
-    </div>
+      <div class="guesses-container">
+        <h3 class="small">Your guesses</h3>
+        <ul id="guessesList" class="guesses" aria-live="polite"></ul>
+      </div>
+    </section>
+  </main>
 
-    <script src="{{ url_for('static', filename='app.js') }}"></script>
+  <script defer src="{{ url_for('static', filename='js/app.js') }}"></script>
 </body>
 </html>

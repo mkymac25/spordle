@@ -1,199 +1,111 @@
-/* ===== General Layout ===== */
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    font-family: 'Helvetica', sans-serif;
+}
+
 body {
-  margin: 0;
-  padding: 0;
-  font-family: 'Poppins', 'Segoe UI', Tahoma, sans-serif;
-  background-color: #121212;
-  color: #ffffff;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  min-height: 100vh;
-  text-align: center;
-  overflow-x: hidden;
+    background-color: #121212;
+    color: #fff;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
 }
 
-/* ===== Logo ===== */
-.logo-link {
-  position: fixed;
-  top: 15px;
-  left: 25px;
-  display: inline-block;
-  z-index: 1000;
-}
-
-.logo {
-  max-height: 140px;        /* Increased from 90px → makes it clearly visible */
-  width: auto;
-  opacity: 0.95;
-  transition: opacity 0.25s ease, transform 0.25s ease;
-  filter: drop-shadow(0 0 8px rgba(0, 0, 0, 0.6));
-}
-
-.logo:hover {
-  opacity: 1;
-  transform: scale(1.08);
-}
-
-@media (max-width: 600px) {
-  .logo {
-    max-height: 100px;       /* Increased mobile size for better visibility */
-  }
-}
-
-
-/* ===== Headings ===== */
-h1, h2, h3 {
-  color: #1DB954;
-  margin-bottom: 15px;
-}
-
-/* ===== Buttons ===== */
-button {
-  background-color: #1DB954;
-  color: white;
-  border: none;
-  border-radius: 25px;
-  padding: 12px 24px;
-  margin: 10px;
-  font-size: 16px;
-  cursor: pointer;
-  transition: background-color 0.25s ease, transform 0.2s ease;
-}
-
-button:hover {
-  background-color: #1ed760;
-  transform: scale(1.05);
-}
-
-button:disabled {
-  background-color: #444;
-  cursor: not-allowed;
-}
-
-/* ===== Input Fields ===== */
-input[type="text"] {
-  width: 250px;
-  padding: 10px;
-  border: none;
-  border-radius: 20px;
-  margin-top: 10px;
-  text-align: center;
-  font-size: 16px;
-  background-color: #222;
-  color: white;
-  outline: none;
-  transition: background-color 0.3s;
-}
-
-input[type="text"]:focus {
-  background-color: #333;
-}
-
-/* ===== Containers ===== */
 .container {
-  max-width: 600px;
-  background-color: #181818;
-  border-radius: 20px;
-  padding: 40px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-  margin-top: 100px;
+    max-width: 480px;
+    width: 100%;
+    padding: 20px;
+    background-color: #1f1f1f;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+    text-align: center;
 }
 
-.scoreboard {
-  background-color: #181818;
-  border-radius: 10px;
-  padding: 15px 25px;
-  margin-top: 20px;
-  font-size: 14px;
-  color: #ccc;
+header .logo {
+    width: 120px;
+    margin-bottom: 20px;
 }
 
-/* ===== Feedback Text ===== */
-.result {
-  font-size: 18px;
-  margin-top: 20px;
-  font-weight: 500;
+h1 {
+    margin-bottom: 30px;
+    font-size: 1.8rem;
+    color: #f0f0f0;
 }
 
-.correct {
-  color: #1DB954;
+.player button {
+    background-color: #1db954;
+    border: none;
+    padding: 12px 25px;
+    border-radius: 25px;
+    color: white;
+    font-weight: bold;
+    cursor: pointer;
+    margin-bottom: 20px;
+    transition: 0.2s;
 }
 
-.incorrect {
-  color: #ff4b4b;
+.player button:hover {
+    background-color: #1ed760;
 }
 
-/* ===== Animations ===== */
-.fade-in {
-  animation: fadeIn 0.5s ease-in-out forwards;
+.guess-container {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin-bottom: 20px;
 }
 
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
+.guess-container input {
+    flex: 1;
+    padding: 12px;
+    border-radius: 25px;
+    border: none;
+    outline: none;
+    font-size: 1rem;
 }
 
-/* ===== Responsive ===== */
-@media (max-width: 600px) {
-  .container {
-    padding: 25px;
-    margin-top: 80px;
-  }
-
-  .logo {
-    max-height: 45px;   /* smaller on phones */
-  }
-
-  input[type="text"] {
-    width: 200px;
-  }
+.guess-container button {
+    background-color: #f44336;
+    border: none;
+    padding: 12px 20px;
+    border-radius: 25px;
+    color: white;
+    font-weight: bold;
+    cursor: pointer;
+    transition: 0.2s;
 }
 
-/* ===== Instructions Page ===== */
-.instructions-container {
-  max-width: 700px;
-  margin: 140px auto 0;
-  padding: 40px;
-  background: rgba(0, 0, 0, 0.65);
-  border-radius: 20px;
-  box-shadow: 0 0 20px rgba(0, 0, 0, 0.4);
-  text-align: center;
-  color: #fff;
-  font-size: 1.1rem;
+.guess-container button:hover {
+    background-color: #ff6659;
 }
 
-.instructions-container h1 {
-  font-size: 2rem;
-  margin-bottom: 20px;
-  color: #1DB954; /* Spotify green */
+.feedback {
+    margin-bottom: 20px;
+    font-size: 1.1rem;
+    min-height: 24px;
 }
 
-.instructions-container a {
-  color: #1DB954;
-  text-decoration: underline;
+.progress-bar {
+    width: 100%;
+    height: 12px;
+    background-color: #444;
+    border-radius: 12px;
+    overflow: hidden;
+    margin-bottom: 20px;
 }
 
-.instructions-container ol {
-  text-align: left;
-  margin: 20px auto;
-  max-width: 500px;
+.progress-bar .progress {
+    width: 0;
+    height: 100%;
+    background-color: #1db954;
+    transition: width 0.3s ease;
 }
 
-.continue-button {
-  display: inline-block;
-  margin-top: 30px;
-  padding: 15px 35px;
-  background-color: #1DB954;
-  color: #fff;
-  font-weight: bold;
-  text-decoration: none;
-  border-radius: 10px;
-  transition: background-color 0.3s ease, transform 0.2s ease;
-}
-
-.continue-button:hover {
-  background-color: #17a74a;
-  transform: scale(1.05);
+footer {
+    font-size: 0.8rem;
+    color: #aaa;
+    margin-top: 10px;
 }

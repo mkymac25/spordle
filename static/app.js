@@ -1,45 +1,67 @@
-const audio = document.getElementById('audio');
-const playBtn = document.getElementById('playSnippet');
-const submitBtn = document.getElementById('submitGuess');
-const feedback = document.getElementById('feedback');
-const progress = document.querySelector('.progress');
+let audio = null;
+let currentSong = null;
 
-let currentSnippet = 0; // starts at first snippet
-const snippetDurations = [1, 2, 3, 4, 5, 6]; // seconds Heardle-style
-let snippetStart = 0;
-let snippetEnd = snippetDurations[currentSnippet];
-let playing = false;
+// Example: Load song list from backend
+let songs = []; // backend should provide {title, preview_url}
+let currentIndex = 0;
 
-// Set your song URL here dynamically
-audio.src = "/static/audio/currentSong.mp3";
+function cleanTitle(title) {
+    // Remove parenthesis content and trim
+    return title.replace(/\(.*?\)/g, '').trim().toLowerCase();
+}
 
-function playSnippet() {
-    if (!playing) {
-        snippetStart = 0;
-        snippetEnd = snippetDurations[currentSnippet];
-        audio.currentTime = snippetStart;
-        audio.play();
-        playing = true;
+function hasEnglishLetters(title) {
+    return /[a-zA-Z]/.test(title);
+}
 
-        audio.ontimeupdate = () => {
-            if (audio.currentTime >= snippetEnd) {
-                audio.pause();
-                progress.style.width = '100%';
-                playing = false;
-                currentSnippet = Math.min(currentSnippet + 1, snippetDurations.length - 1);
-            } else {
-                let percent = ((audio.currentTime - snippetStart) / (snippetEnd - snippetStart)) * 100;
-                progress.style.width = `${percent}%`;
-            }
-        };
+function loadNextSong() {
+    if (currentIndex >= songs.length) {
+        document.getElementById('song-title').innerText = "Game Over!";
+        return;
+    }
+    currentSong = songs[currentIndex];
+    
+    if (!hasEnglishLetters(currentSong.title)) {
+        currentIndex++;
+        loadNextSong();
+        return;
+    }
+
+    document.getElementById('song-title').innerText = "Guess the Song!";
+    if (audio) {
+        audio.pause();
+        audio = null;
     }
 }
 
-playBtn.addEventListener('click', playSnippet);
+document.getElementById('play-snippet').addEventListener('click', () => {
+    if (!currentSong) return;
 
-submitBtn.addEventListener('click', () => {
-    let guess = document.getElementById('guessInput').value.trim().toLowerCase();
-    guess = guess.replace(/\(.*?\)/g, '').trim(); // remove parenthesis text
-    feedback.textContent = `You guessed: ${guess}`;
-    // TODO: Add your answer checking logic here
+    if (!audio) {
+        audio = new Audio(currentSong.preview_url);
+    }
+
+    if (audio.paused) {
+        audio.currentTime = 0;
+        audio.play();
+    } else {
+        audio.pause();
+        audio.currentTime = 0;
+    }
 });
+
+document.getElementById('submit-guess').addEventListener('click', () => {
+    const input = document.getElementById('guess-input').value.toLowerCase().trim();
+    const answer = cleanTitle(currentSong.title);
+
+    if (input === answer) {
+        document.getElementById('feedback').innerText = "Correct!";
+    } else {
+        document.getElementById('feedback').innerText = `Wrong! Answer: ${answer}`;
+    }
+    currentIndex++;
+    loadNextSong();
+});
+
+// Initial load
+loadNextSong();

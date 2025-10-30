@@ -272,16 +272,16 @@ def play_snippet():
 
     Behavior:
       - If "full" is true: start playback at position 0 and DO NOT pause (plays full song).
-      - Otherwise: start playback at position 0, sleep for duration seconds, then pause.
+      - Otherwise: start playback at position 0, WAIT until playback actually starts (poll),
+        then sleep for duration seconds, then pause.
     """
     sp = get_spotify()
     if not sp:
         return jsonify({"needs_auth": True})
+
     data = request.get_json(force=True) or {}
     track_uri = data.get("uri")
-    # 'full' is intended to indicate "play the full track (don't auto-pause)"
     full = bool(data.get("full", False))
-    # allow legacy "duration" param; if full True, ignore duration
     try:
         duration = int(data.get("duration", 0))
     except Exception:
@@ -293,22 +293,39 @@ def play_snippet():
         return jsonify({"error": "no-active-device"}), 400
     device_id = active["id"]
     try:
-        # Start from the beginning (position_ms=0)
+        # Start playback from the VERY beginning
         sp.start_playback(device_id=device_id, uris=[track_uri], position_ms=0)
 
         if full:
-            # Do NOT pause — let Spotify play the full track on the user's active device.
+            # don't pause — play the full track
             return jsonify({"status": "playing_full"})
-        else:
-            # For snippet behavior: sleep for the requested duration, then pause.
-            # If duration <= 0, default to 5 seconds
-            if duration <= 0:
-                duration = 5
-            time.sleep(duration)
-            sp.pause_playback(device_id=device_id)
-            return jsonify({"status": "played_snippet", "duration": duration})
+
+        # wait up to N seconds for playback to actually start (progress > X ms)
+        started = False
+        wait_seconds = 5.0
+        poll_interval = 0.2
+        waited = 0.0
+        while waited < wait_seconds:
+            state = sp.current_playback()
+            if state and state.get("is_playing") and (state.get("progress_ms", 0) > 200):
+                started = True
+                break
+            time.sleep(poll_interval)
+            waited += poll_interval
+
+        # If playback never started, still attempt the snippet sleep/pause but warn
+        if not started:
+            # fall back: short sleep to give Spotify some time
+            time.sleep(0.5)
+
+        # fallback duration default
+        if duration <= 0:
+            duration = 5
+
+        time.sleep(duration)
+        sp.pause_playback(device_id=device_id)
+        return jsonify({"status": "played_snippet", "duration": duration, "started": started})
     except Exception as e:
-        # Return the exception message; frontend can show the error
         return jsonify({"error": str(e)}), 500
 
 @app.route("/api/check-guess", methods=["POST"])

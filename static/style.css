@@ -18,27 +18,27 @@ body {
 .logo-link {
   position: fixed;
   top: 15px;
-  left: 20px;
+  left: 25px;
   display: inline-block;
   z-index: 1000;
 }
 
 .logo {
-  max-height: 90px;         /* was 60px — larger now */
+  max-height: 140px;        /* Increased from 90px → makes it clearly visible */
   width: auto;
   opacity: 0.95;
   transition: opacity 0.25s ease, transform 0.25s ease;
-  filter: drop-shadow(0 0 5px rgba(0, 0, 0, 0.5));
+  filter: drop-shadow(0 0 8px rgba(0, 0, 0, 0.6));
 }
 
 .logo:hover {
   opacity: 1;
-  transform: scale(1.05);
+  transform: scale(1.08);
 }
 
 @media (max-width: 600px) {
   .logo {
-    max-height: 65px;       /* was 45px — looks better on phones now */
+    max-height: 100px;       /* Increased mobile size for better visibility */
   }
 }
 

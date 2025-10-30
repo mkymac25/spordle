@@ -4,13 +4,10 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Guessify — Game</title>
-
-  <!-- IMPORTANT: this expects the CSS file at static/style.css -->
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
   <header class="topbar">
-    <!-- IMPORTANT: this expects the logo at static/guessifyWhite.png -->
     <img src="{{ url_for('static', filename='guessifyWhite.png') }}" alt="Guessify" class="logo">
     <a id="logoutBtn" class="logout" href="{{ url_for('logout') }}">Logout</a>
   </header>
@@ -20,7 +17,9 @@
       <h1 class="title">Guess the Song!</h1>
 
       <div class="controls">
-        <button id="playSnippet" class="btn primary" disabled>Preparing...</button>
+        <div id="playContainer">
+          <button id="playSnippet" class="btn primary" disabled>Preparing...</button>
+        </div>
       </div>
 
       <div class="guess-row">
@@ -37,7 +36,6 @@
     </section>
   </main>
 
-  <!-- IMPORTANT: this expects the JS file at static/app.js -->
   <script defer src="{{ url_for('static', filename='app.js') }}"></script>
 </body>
 </html>

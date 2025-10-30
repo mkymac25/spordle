@@ -2,34 +2,24 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Guessify</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <title>Guessify - Game</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
     <header>
-        <img src="{{ url_for('static', filename='images/guessifyWhite.png') }}" class="logo">
-        <a href="{{ url_for('logout') }}" class="logout-btn">Logout</a>
+        <img src="{{ url_for('static', filename='images/GuessifyWhite.png') }}" alt="Guessify Logo" class="logo">
+        <a class="logout" href="{{ url_for('logout') }}">Logout</a>
     </header>
-
     <main>
-        <div class="game-container">
-            <div class="song-info">
-                <h2 id="song-title">Guess the Song!</h2>
-            </div>
-
-            <div class="controls">
-                <button id="play-snippet">Play Snippet</button>
-            </div>
-
-            <div class="guess-container">
-                <input type="text" id="guess-input" placeholder="Type your guess...">
-                <button id="submit-guess">Submit</button>
-            </div>
-
-            <div id="feedback"></div>
+        <h2>Guess the song!</h2>
+        <div id="track-info">
+            <p id="track-artists"></p>
         </div>
+        <input type="text" id="guess-input" placeholder="Type your guess here...">
+        <button id="guess-btn">Submit Guess</button>
+        <p id="feedback"></p>
     </main>
 
-    <script src="{{ url_for('static', filename='app.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
 </body>
 </html>

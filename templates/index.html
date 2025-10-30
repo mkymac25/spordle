@@ -3,15 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <title>Guessify</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-    <header>
-        <img src="{{ url_for('static', filename='images/GuessifyWhite.png') }}" alt="Guessify Logo" class="logo">
-    </header>
-    <main>
+    <div class="header">
+        <img src="{{ url_for('static', filename='images/guessifyWhite.png') }}" class="logo">
+    </div>
+
+    <div class="container">
         <h1>Welcome to Guessify!</h1>
-        <a class="btn" href="{{ url_for('login') }}">Login with Spotify</a>
-    </main>
+        <a href="{{ url_for('login') }}" class="button">Login with Spotify</a>
+    </div>
 </body>
 </html>

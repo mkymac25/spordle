@@ -11,6 +11,7 @@ body {
   justify-content: center;
   min-height: 100vh;
   text-align: center;
+  overflow-x: hidden;
 }
 
 /* ===== Logo ===== */
@@ -23,8 +24,8 @@ body {
 }
 
 .logo {
-  height: 60px;
-  width: auto;
+  max-height: 60px;         /* Prevents it from ever being too tall */
+  width: auto;              /* Keeps proportions */
   opacity: 0.9;
   transition: opacity 0.25s ease, transform 0.25s ease;
   filter: drop-shadow(0 0 4px rgba(0, 0, 0, 0.4));
@@ -135,7 +136,7 @@ input[type="text"]:focus {
   }
 
   .logo {
-    height: 50px;
+    max-height: 45px;   /* smaller on phones */
   }
 
   input[type="text"] {

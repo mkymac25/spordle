@@ -1,19 +1,15 @@
-<!doctype html>
-<html>
+<!DOCTYPE html>
+<html lang="en">
 <head>
-  <meta charset="utf-8">
-  <title>Spordle — Connect Spotify</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <meta charset="UTF-8">
+    <title>Guessify Login</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-  <a href="/" class="logo-link">
-  <img src="/static/images/GuessifyWhite.png" alt="Guessify Logo" class="logo">
-</a>
-  <div class="container">
-    <h1>🎧 Spordle</h1>
-    <p class="subtitle">Guess the song from short audio snippets. Connect your Spotify to start.</p>
-    <p><a href="/login"><button>Connect with Spotify</button></a></p>
-  </div>
+    <div class="login-container">
+        <img src="{{ url_for('static', filename='images/guessifyWhite.png') }}" class="logo">
+        <h1>Welcome to Guessify!</h1>
+        <a href="{{ url_for('login') }}" class="login-btn">Login with Spotify</a>
+    </div>
 </body>
 </html>

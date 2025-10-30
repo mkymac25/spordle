@@ -264,26 +264,51 @@ def seed_track():
 
 @app.route("/api/play-snippet", methods=["POST"])
 def play_snippet():
+    """
+    Play a snippet on the user's active Spotify device.
+
+    Request JSON:
+      { "uri": "<track_uri>", "duration": <seconds>, "full": <bool> }
+
+    Behavior:
+      - If "full" is true: start playback at position 0 and DO NOT pause (plays full song).
+      - Otherwise: start playback at position 0, sleep for duration seconds, then pause.
+    """
     sp = get_spotify()
     if not sp:
         return jsonify({"needs_auth": True})
-    data = request.get_json(force=True)
+    data = request.get_json(force=True) or {}
     track_uri = data.get("uri")
+    # 'full' is intended to indicate "play the full track (don't auto-pause)"
+    full = bool(data.get("full", False))
+    # allow legacy "duration" param; if full True, ignore duration
     try:
-        duration = int(data.get("duration", 5))
+        duration = int(data.get("duration", 0))
     except Exception:
-        duration = 5
+        duration = 0
+
     devices = sp.devices().get("devices", [])
     active = next((d for d in devices if d.get("is_active")), None)
     if not active:
         return jsonify({"error": "no-active-device"}), 400
     device_id = active["id"]
     try:
+        # Start from the beginning (position_ms=0)
         sp.start_playback(device_id=device_id, uris=[track_uri], position_ms=0)
-        time.sleep(duration)
-        sp.pause_playback(device_id=device_id)
-        return jsonify({"status": "played"})
+
+        if full:
+            # Do NOT pause — let Spotify play the full track on the user's active device.
+            return jsonify({"status": "playing_full"})
+        else:
+            # For snippet behavior: sleep for the requested duration, then pause.
+            # If duration <= 0, default to 5 seconds
+            if duration <= 0:
+                duration = 5
+            time.sleep(duration)
+            sp.pause_playback(device_id=device_id)
+            return jsonify({"status": "played_snippet", "duration": duration})
     except Exception as e:
+        # Return the exception message; frontend can show the error
         return jsonify({"error": str(e)}), 500
 
 @app.route("/api/check-guess", methods=["POST"])

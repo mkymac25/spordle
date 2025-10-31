@@ -8,7 +8,7 @@
   // guesses is array of { text: string, accepted: boolean|null }
   let guesses = [];
   let guessCount = 0;
-  let snippetIndex = 0; // which snippet we're currently on (advances only after wrong guess)
+  let snippetIndex = 0; // which guess we're currently on
   let snippetPlaying = false;
   let waitingForSnippet = false;
 

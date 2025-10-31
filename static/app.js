@@ -1,214 +1,291 @@
 // static/app.js
-const SNIPPET_LENGTHS = [1, 2, 5, 7, 10];
+(() => {
+  const SNIPPETS = [1, 2, 3, 5, 7];
+  const MAX_GUESSES = 5;
+  const STARTUP_WAIT_MS = 5000; // 5 seconds buffer after loading a new track
 
-let state = { track: null, round: 0, history: [] };
+  let currentTrack = null;
+  // guesses is array of { text: string, accepted: boolean|null }
+  let guesses = [];
+  let guessCount = 0;
+  let snippetIndex = 0; // which guess we're currently on
+  let snippetPlaying = false;
+  let waitingForSnippet = false;
 
-const audio = document.getElementById("audio");
-const playButton = document.getElementById("play-snippet");
-const newButton = document.getElementById("fetch-new");
-const guessForm = document.getElementById("guess-form");
-const guessInput = document.getElementById("guess-input");
-const infoDiv = document.getElementById("info");
-const historyDiv = document.getElementById("history");
-const authDiv = document.getElementById("auth");
-const gameDiv = document.getElementById("game");
-const errorsDiv = document.getElementById("errors");
+  // DOM refs (set on DOMContentLoaded)
+  let playBtn = null;
+  let playContainer = null;
+  let guessInput = null;
+  let submitBtn = null;
+  let feedbackEl = null;
+  let guessesList = null;
+  let logoutBtn = null;
 
-let stopTimeout = null;
+  // restore the Play Snippet button inside playContainer and wire it up
+  function restorePlayButton(initialLabel = `Play ${SNIPPETS[0]}s Snippet`) {
+    if (!playContainer) return;
+    playContainer.innerHTML = ''; // clear whatever's there
+    const btn = document.createElement('button');
+    btn.id = 'playSnippet';
+    btn.className = 'btn primary';
+    btn.disabled = true; // will be enabled after prepare wait
+    btn.textContent = initialLabel;
+    playContainer.appendChild(btn);
 
-function setInfo(msg) {
-  infoDiv.textContent = msg;
-}
-function setError(msg) {
-  errorsDiv.textContent = msg;
-}
-function clearError() {
-  errorsDiv.textContent = "";
-}
-function renderHistory() {
-  historyDiv.innerHTML = "";
-  state.history.forEach((h, i) => {
-    const el = document.createElement("div");
-    el.textContent = `${i+1}. ${h.guess} — ${h.accepted ? "✅" : "❌"} ${h.ratio ? `(${(h.ratio*100).toFixed(0)}%)` : ""}`;
-    historyDiv.appendChild(el);
-  });
-}
-
-function fetchSeed() {
-  clearError();
-  fetch("/api/seed-track")
-    .then(r => r.json())
-    .then(data => {
-      if (data.needs_auth) {
-        authDiv.style.display = "block";
-        gameDiv.style.display = "none";
-        setError("Please connect your Spotify account.");
-        return;
-      }
-      if (data.error) {
-        setError("Error: " + data.error);
-        return;
-      }
-      state.track = data;
-      state.round = 0;
-      state.history = [];
-      authDiv.style.display = "none";
-      gameDiv.style.display = "block";
-      setInfo(`Artist hint: ${data.artists.join(", ")}`);
-      audio.src = "";
-      renderHistory();
-    })
-    .catch(err => {
-      setError("Network error: " + err);
-    });
-}
-
-function playSnippet() {
-  clearError();
-  if (!state.track || !state.track.preview_url) {
-    setError("No preview available for this track. Try a new song or another account.");
-    return;
+    // update the reference and attach listener
+    playBtn = document.getElementById('playSnippet');
+    if (playBtn) {
+      playBtn.addEventListener('click', playSnippet);
+    }
   }
-  if (stopTimeout) { clearTimeout(stopTimeout); stopTimeout = null; }
-  const startSec = 0;
-  const playFor = SNIPPET_LENGTHS[Math.min(state.round, SNIPPET_LENGTHS.length - 1)];
-  audio.src = state.track.preview_url;
-  audio.currentTime = startSec;
-  audio.play().catch(err => {
-    setError("Playback failed (browser autoplay rules). Click the Play snippet button directly.");
-  });
-  stopTimeout = setTimeout(() => {
-    audio.pause();
-  }, playFor * 1000);
-  setInfo(`Playing ${playFor}s — Artist hint: ${state.track.artists.join(", ")}`);
-}
 
-playButton.addEventListener("click", (e) => {
-  e.preventDefault();
-  playSnippet();
-});
+  // fetch a new seed track and reset state
+  async function fetchTrack() {
+    // ensure the play button is present (restore if it was replaced)
+    restorePlayButton();
 
-newButton.addEventListener("click", (e) => {
-  e.preventDefault();
-  fetchSeed();
-});
-
-guessForm.addEventListener("submit", (ev) => {
-  ev.preventDefault();
-  clearError();
-  const guess = guessInput.value.trim();
-  if (!guess) return;
-  fetch("/api/check-guess", {
-    method: "POST",
-    headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({guess})
-  })
-    .then(r => r.json())
-    .then(res => {
-      if (res.error) {
-        setError("Server error: " + res.error);
+    setPlayDisabled(true, "Loading...");
+    try {
+      const res = await fetch("/api/seed-track");
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        feedbackEl.textContent = err.error || "No tracks available.";
+        setPlayDisabled(true, "Unavailable");
+        currentTrack = null;
         return;
       }
-      state.history.push(res);
-      renderHistory();
-      guessInput.value = "";
-      if (res.accepted) {
-        setInfo(`Correct! 🎉 "${res.correct_title}" — Artists: ${state.track.artists.join(", ")}`);
+      currentTrack = await res.json();
+      guesses = [];
+      guessCount = 0;
+      snippetIndex = 0;
+      renderGuesses();
+      feedbackEl.textContent = "";
+
+      // wait a short buffer before enabling snippet button
+      waitingForSnippet = true;
+      setPlayDisabled(true, "Preparing...");
+      setTimeout(() => {
+        waitingForSnippet = false;
+        setPlayDisabled(false, `Play ${SNIPPETS[0]}s Snippet`);
+      }, STARTUP_WAIT_MS);
+    } catch (err) {
+      console.error("fetchTrack error", err);
+      feedbackEl.textContent = "Network error loading track";
+      setPlayDisabled(true, "Error");
+      currentTrack = null;
+    }
+  }
+
+  function setPlayDisabled(disabled, label) {
+    if (!playBtn) return;
+    playBtn.disabled = !!disabled;
+    if (label !== undefined) playBtn.textContent = label;
+    playBtn.classList.toggle("disabled", !!disabled);
+  }
+
+  // re-render the guesses list with emojis
+  function renderGuesses() {
+    if (!guessesList) return;
+    guessesList.innerHTML = "";
+    guesses.forEach((g, i) => {
+      const li = document.createElement("li");
+      li.className = "guess-item";
+      const mark = g.accepted === true ? " ✅" : (g.accepted === false ? " ❌" : "");
+      li.textContent = `${i + 1}. ${g.text}${mark}`;
+      guessesList.appendChild(li);
+    });
+  }
+
+  // play current snippet (does NOT advance snippetIndex)
+  async function playSnippet() {
+    if (!currentTrack || snippetPlaying || waitingForSnippet) return;
+    snippetPlaying = true;
+
+    const idx = Math.min(snippetIndex, SNIPPETS.length - 1);
+    const duration = SNIPPETS[idx];
+
+    setPlayDisabled(true, `Playing ${duration}s...`);
+    feedbackEl.textContent = `Playing ${duration}s snippet on your Spotify device...`;
+
+    try {
+      const res = await fetch("/api/play-snippet", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ uri: currentTrack.uri, duration: duration, full: false })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        console.error("play-snippet error:", data);
+        feedbackEl.textContent = "Could not play snippet: " + (data.error || res.statusText);
       } else {
-        state.round = Math.min(state.round + 1, SNIPPET_LENGTHS.length - 1);
-        setInfo(`Wrong. Next snippet will be ${SNIPPET_LENGTHS[state.round]}s.`);
-        setTimeout(playSnippet, 500);
+        // snippet finished (backend paused)
+        feedbackEl.textContent = `Snippet finished (${duration}s).`;
+        // keep snippetIndex unchanged — user can replay same snippet
+        setPlayDisabled(false, `Play ${SNIPPETS[idx]}s Snippet`);
       }
-    })
-    .catch(err => setError("Network error: " + err));
-});
-
-// --- Stats modal logic ---
-function makeStatsModal() {
-  // create backdrop
-  const backdrop = document.createElement("div");
-  backdrop.className = "modal-backdrop";
-  backdrop.id = "stats-backdrop";
-  backdrop.innerHTML = `
-    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="stats-title">
-      <h3 id="stats-title">Your Spordle Stats</h3>
-      <div id="stats-content">
-        <div class="stat-row"><div>Games played</div><div id="stat-games">0</div></div>
-        <div class="stat-row"><div>Songs guessed (correct)</div><div id="stat-correct">0</div></div>
-        <div class="stat-row"><div>Songs guessed (incorrect)</div><div id="stat-incorrect">0</div></div>
-        <div class="stat-row"><div>Total guesses</div><div id="stat-guesses">0</div></div>
-        <div class="recent"><strong>Recent:</strong><div id="stat-recent"></div></div>
-        <button class="btn close-btn" id="stats-close">Close</button>
-      </div>
-    </div>
-  `;
-  document.body.appendChild(backdrop);
-
-  // hide on backdrop click
-  backdrop.addEventListener("click", (e) => {
-    if (e.target === backdrop) hideStatsModal();
-  });
-  // close button
-  backdrop.querySelector("#stats-close").addEventListener("click", hideStatsModal);
-}
-
-function showStatsModal() {
-  const backdrop = document.getElementById("stats-backdrop");
-  if (!backdrop) return;
-  backdrop.style.display = "flex";
-}
-
-function hideStatsModal() {
-  const backdrop = document.getElementById("stats-backdrop");
-  if (!backdrop) return;
-  backdrop.style.display = "none";
-}
-
-function populateStats(data) {
-  document.getElementById("stat-games").textContent = data.games_played ?? 0;
-  document.getElementById("stat-correct").textContent = data.songs_guessed_correct ?? 0;
-  document.getElementById("stat-incorrect").textContent = data.songs_guessed_incorrect ?? 0;
-  document.getElementById("stat-guesses").textContent = data.guesses_total ?? 0;
-
-  const recentDiv = document.getElementById("stat-recent");
-  recentDiv.innerHTML = "";
-  if (Array.isArray(data.recent) && data.recent.length) {
-    data.recent.slice(0, 5).forEach(item => {
-      const row = document.createElement("div");
-      row.textContent = `${item.accepted ? "✅" : "❌"} ${item.title}`;
-      recentDiv.appendChild(row);
-    });
-  } else {
-    recentDiv.textContent = "No recent guesses yet.";
+    } catch (err) {
+      console.error("play-snippet network error", err);
+      feedbackEl.textContent = "Network error while requesting snippet.";
+      setPlayDisabled(false, `Play ${SNIPPETS[Math.min(snippetIndex, SNIPPETS.length - 1)]}s Snippet`);
+    } finally {
+      snippetPlaying = false;
+    }
   }
-}
 
-// fetch stats and display
-function fetchAndShowStats() {
-  fetch("/api/stats")
-    .then(r => r.json())
-    .then(data => {
-      populateStats(data);
-      showStatsModal();
-    })
-    .catch(err => {
-      setError("Failed to fetch stats: " + err);
-      console.error(err);
-    });
-}
+  // request backend to start full playback (position 0) and not auto-pause
+  async function playFull() {
+    if (!currentTrack) return;
+    // Replace the play button with the song title & artist (also disables it visually)
+    replacePlayWithSongTitle();
 
-// initialize modal DOM and button listener on load
-window.addEventListener("load", () => {
-  // Try to hydrate session then get a seed
-  fetch("/api/session-info")
-    .then(r => r.json())
-    .then(si => { fetchSeed(); })
-    .catch(() => { fetchSeed(); });
+    feedbackEl.textContent = "Starting full playback on your Spotify device...";
+    try {
+      const res = await fetch("/api/play-snippet", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ uri: currentTrack.uri, full: true })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        console.error("play-full error:", data);
+        feedbackEl.textContent = "Could not start full playback: " + (data.error || res.statusText);
+      } else {
+        feedbackEl.textContent = "Playing full song on your Spotify device...";
+      }
+    } catch (err) {
+      console.error("play-full network error", err);
+      feedbackEl.textContent = "Network error while requesting full playback.";
+    }
+  }
 
-  makeStatsModal();
-  const statsBtn = document.getElementById("stats-btn");
-  if (statsBtn) statsBtn.addEventListener("click", (e) => {
-    e.preventDefault();
-    fetchAndShowStats();
+  // submit a guess; advance snippet only when guess is incorrect
+  async function submitGuess() {
+    if (!guessInput || !currentTrack) return;
+    const text = guessInput.value.trim();
+    if (!text) return;
+
+    // clear and focus
+    guessInput.value = "";
+    guessInput.focus();
+
+    let data;
+    try {
+      const res = await fetch("/api/check-guess", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ guess: text })
+      });
+      data = await res.json();
+      if (!res.ok) {
+        console.error("/api/check-guess error:", data);
+        feedbackEl.textContent = data.error || "Error checking guess";
+        return;
+      }
+    } catch (err) {
+      console.error("check-guess network error", err);
+      feedbackEl.textContent = "Network error while checking guess.";
+      return;
+    }
+
+    // store guess result (accepted true/false)
+    guesses.push({ text: text, accepted: !!data.accepted });
+    guessCount++;
+    renderGuesses();
+
+    if (data.accepted) {
+      feedbackEl.innerHTML = `✅ Correct! The song was "<strong>${escapeHtml(data.correct_title_raw)}</strong>"`;
+      // replace Play button with title/artist
+      replacePlayWithSongTitle();
+      // play full song from start
+      await playFull();
+      // report result
+      reportResult(true, guessCount, currentTrack.id).catch(console.error);
+      setTimeout(fetchTrack, 6000);
+      return;
+    }
+
+    // incorrect guess: advance snippet index (so next wrong guess will request longer snippet)
+    if (snippetIndex < SNIPPETS.length - 1) snippetIndex++;
+
+    if (guessCount >= MAX_GUESSES) {
+      // out of guesses
+      feedbackEl.innerHTML = `❌ Out of guesses. The song was "<strong>${escapeHtml(data.correct_title_raw)}</strong>"`;
+      // show title/artist
+      replacePlayWithSongTitle();
+      await playFull();
+      reportResult(false, guessCount, currentTrack.id).catch(console.error);
+      setTimeout(fetchTrack, 6000);
+      return;
+    }
+
+    const remaining = MAX_GUESSES - guessCount;
+    feedbackEl.textContent = `❌ Incorrect — ${remaining} guess${remaining === 1 ? "" : "es"} left.`;
+    // play button label should reflect current snippet duration (no auto-increment on playing)
+    setPlayDisabled(false, `Play ${SNIPPETS[Math.min(snippetIndex, SNIPPETS.length - 1)]}s Snippet`);
+  }
+
+  // Replace the play button inside the playContainer with title & artist text
+  function replacePlayWithSongTitle() {
+    if (!playContainer || !currentTrack) return;
+    const title = currentTrack.name || "";
+    const artists = (currentTrack.artists || []).join(", ");
+    const span = document.createElement("div");
+    span.className = "song-title-display";
+    span.innerHTML = `<div class="song-title-text">${escapeHtml(title)}</div><div class="song-artist-text">${escapeHtml(artists)}</div>`;
+    // replace contents of playContainer
+    playContainer.innerHTML = "";
+    playContainer.appendChild(span);
+    // ensure playBtn reference is cleared (so no accidental clicks)
+    playBtn = null;
+  }
+
+  // send result to backend
+  async function reportResult(accepted, attempts, track_id) {
+    try {
+      await fetch("/api/report-result", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ accepted: accepted, attempts: attempts, track_id: track_id })
+      });
+    } catch (err) {
+      console.error("report-result error", err);
+    }
+  }
+
+  function escapeHtml(str) {
+    return String(str)
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#39;");
+  }
+
+  // hookup DOM and events
+  document.addEventListener("DOMContentLoaded", () => {
+    playContainer = document.getElementById("playContainer");
+    guessInput = document.getElementById("guessInput");
+    submitBtn = document.getElementById("submitGuess");
+    feedbackEl = document.getElementById("feedback");
+    guessesList = document.getElementById("guessesList");
+    logoutBtn = document.getElementById("logoutBtn");
+
+    if (!playContainer || !guessInput || !submitBtn || !feedbackEl || !guessesList) {
+      console.error("Missing DOM elements required by app.js");
+      return;
+    }
+
+    // create initial play button
+    restorePlayButton();
+
+    // wire inputs
+    submitBtn.addEventListener("click", submitGuess);
+    guessInput.addEventListener("keyup", (e) => { if (e.key === "Enter") submitGuess(); });
+
+    // initial load
+    fetchTrack();
   });
-});
+
+  // Expose for debugging
+  window._guessify = { fetchTrack, playSnippet, submitGuess, playFull };
+})();

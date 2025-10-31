@@ -67,14 +67,9 @@ def has_latin_characters(text: str) -> bool:
     return bool(re.search(r'[A-Za-z]', text))
 
 def normalize_title(t: str) -> str:
-    """
-    Normalize a track title for matching:
-    - lowercase
-    - remove bracketed/parenthetical content
-    - remove common 'feat' sections (feat/ft/featuring and following text)
-    - remove trailing hyphenated/remaster/version info
-    - strip punctuation, collapse whitespace
-    """
+
+    #Normalize a track title for matching:
+    
     if not t:
         return ""
     s = t.lower()
@@ -100,12 +95,10 @@ def normalize_title(t: str) -> str:
 
 def _collect_candidate_tracks(sp):
     """
-    Return a list of track objects (dict) collected from:
-    - currently playing (if any)
-    - recently played (limit 50)
-    - top tracks (limit 50)
+    Return a list of track objects (dict) collected from currently playing (if any), recently played (limit 50), top tracks (limit 50)
     Avoid duplicates in the returned list (by track id), keep order random-ish.
     """
+    
     candidates = {}
     # 1) currently playing
     try:
@@ -140,7 +133,8 @@ def _collect_candidate_tracks(sp):
     random.shuffle(cand_list)
     return cand_list
 
-# ---------- Routes: templates ----------
+
+# ---------- templates routes ----------
 @app.route("/")
 def index():
     return render_template("index.html")
@@ -360,7 +354,7 @@ def check_guess():
     if not guess_norm:
         guess_norm = guess_raw.lower()
 
-    # Use the precomputed correct_match for matching
+    # Use the premade correct_match for matching
     score = fuzz.ratio(guess_norm, correct_match)
     target = 93 if len(correct_match) > 4 else 88
     accepted = score >= target

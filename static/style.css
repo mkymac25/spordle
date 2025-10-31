@@ -28,7 +28,7 @@ body{
   background:var(--accent);
 }
 .logo{
-  height:56px;
+  height:112px;
   width:auto;
 }
 .logout{
